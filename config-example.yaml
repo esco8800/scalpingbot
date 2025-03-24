@@ -1,0 +1,8 @@
+profit_percent: 0.5   # Процент прибыли
+drop_percent: 1.5     # Процент падения
+delay_seconds: 20     # Задержка в секундах
+order_size: 50.0      # Размер ордера в долларах
+deposit: 500.0        # Общий депозит
+api_key: "your_mexc_api_key"
+secret_key: "your_mexc_secret_key"
+symbol: "KASUSDT" # Торгуем Kaspa против USDT
