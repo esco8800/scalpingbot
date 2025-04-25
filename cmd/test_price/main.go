@@ -20,7 +20,7 @@ func main() {
 	}
 
 	// Создаём клиента MEXC
-	ex := exchange.NewMEXCExchange(cfg.APIKey, cfg.SecretKey, cfg.Symbol)
+	ex := exchange.NewMEXCClient(cfg.APIKey, cfg.SecretKey, cfg.Symbol)
 
 	// Создаём контекст с отменой
 	ctx, cancel := context.WithCancel(context.Background())
@@ -31,7 +31,10 @@ func main() {
 
 	// Запускаем подписку на цены
 	log.Println("Запуск подписки на цены...")
-	go ex.SubscribePrice(ctx, priceChan)
+	err = ex.SubscribePrice(ctx, priceChan)
+	if err != nil {
+		log.Fatalf("Ошибка подписки на цены: %v", err)
+	}
 
 	// Настраиваем graceful shutdown
 	sigChan := make(chan os.Signal, 1)

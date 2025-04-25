@@ -2,176 +2,89 @@ package exchange
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
+	"io"
+	"net/http"
+	"net/url"
 	"strconv"
-	"sync"
+	"time"
 )
 
-// Exchange - интерфейс для работы с биржей
-type Exchange interface {
-	GetCurrentPrice(ctx context.Context) (float64, error)
-	PlaceBuyOrder(ctx context.Context, price, amount float64) (string, error)
-	PlaceSellOrder(ctx context.Context, price, amount float64) (string, error)
-	SubscribePrice(ctx context.Context, priceChan chan<- float64)
-	SubscribeOrders(ctx context.Context, orderChan chan<- OrderUpdate)
+// SpotOrderRequest - структура для создания ордера через REST API
+type SpotOrderRequest struct {
+	Symbol    string  `json:"symbol"`
+	Side      string  `json:"side"`
+	Type      string  `json:"type"`
+	Quantity  float64 `json:"quantity"`
+	Price     float64 `json:"price,omitempty"`
+	Timestamp int64   `json:"timestamp"`
 }
 
-// OrderUpdate - структура для обновлений состояния ордеров
-type OrderUpdate struct {
-	OrderID   string
-	Price     float64
-	Quantity  float64
-	Status    string
-	Timestamp int64
+// OrderResponse - ответ от API на создание ордера
+type OrderResponse struct {
+	OrderId string `json:"orderId"`
 }
 
-// MEXCExchange - реализация интерфейса для MEXC
-type MEXCExchange struct {
-	client       *MEXCClient // Используем MEXCClient из client.go
-	symbol       string
-	currentPrice float64
-	mu           sync.Mutex
-}
+// NewOrder - создание нового ордера через REST API
+func (c *MEXCClient) PlaceBuyOrder(ctx context.Context, req SpotOrderRequest) (*OrderResponse, error) {
+	req.Timestamp = time.Now().UnixMilli()
+	// сетим данные для оредра
+	req.Side = "BUY"
+	req.Type = "LIMIT"
+	req.Symbol = c.symbol
+	req.Quantity = 0.001
+	req.Price = 60000
 
-// NewMEXCExchange - создание нового клиента MEXC
-func NewMEXCExchange(apiKey, secretKey, symbol string) *MEXCExchange {
-	client := NewMEXCClient(apiKey, secretKey) // Функция из client.go
-	return &MEXCExchange{
-		client: client,
-		symbol: symbol,
-	}
-}
+	query := c.buildOrderQuery(req)
+	signature := c.sign(query.Encode())
+	query.Set("signature", signature)
 
-// GetCurrentPrice - возвращает последнюю известную цену из WebSocket
-func (e *MEXCExchange) GetCurrentPrice(ctx context.Context) (float64, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if e.currentPrice == 0 {
-		return 0, fmt.Errorf("цена ещё не получена через WebSocket")
-	}
-	return e.currentPrice, nil
-}
-
-// PlaceBuyOrder - выставление рыночного ордера на покупку через REST API
-func (e *MEXCExchange) PlaceBuyOrder(ctx context.Context, price, amount float64) (string, error) {
-	quantity := amount / price
-	orderReq := SpotOrderRequest{ // Структура из client.go
-		Symbol:   e.symbol,
-		Side:     "BUY",
-		Type:     "MARKET",
-		Quantity: quantity,
-	}
-	resp, err := e.client.NewOrder(orderReq)
+	url := fmt.Sprintf("%s/api/v3/order?%s", c.baseURL, query.Encode())
+	httpReq, err := http.NewRequest("POST", url, nil)
 	if err != nil {
-		return "", fmt.Errorf("ошибка покупки: %v", err)
+		return nil, err
 	}
-	return resp.OrderId, nil
-}
+	httpReq.Header.Set("X-MEXC-APIKEY", c.apiKey)
 
-// PlaceSellOrder - выставление лимитного ордера на продажу через REST API
-func (e *MEXCExchange) PlaceSellOrder(ctx context.Context, price, amount float64) (string, error) {
-	quantity := amount / price
-	orderReq := SpotOrderRequest{ // Структура из client.go
-		Symbol:   e.symbol,
-		Side:     "SELL",
-		Type:     "LIMIT",
-		Price:    price,
-		Quantity: quantity,
-	}
-	resp, err := e.client.NewOrder(orderReq)
+	client := &http.Client{}
+	resp, err := client.Do(httpReq)
 	if err != nil {
-		return "", fmt.Errorf("ошибка продажи: %v", err)
+		return nil, err
 	}
-	return resp.OrderId, nil
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("ошибка API: %s, тело: %s", resp.Status, string(body))
+	}
+
+	var orderResp OrderResponse
+	if err := json.NewDecoder(resp.Body).Decode(&orderResp); err != nil {
+		return nil, err
+	}
+	return &orderResp, nil
 }
 
-// SubscribePrice - подписка на обновления цены через WebSocket
-func (e *MEXCExchange) SubscribePrice(ctx context.Context, priceChan chan<- float64) {
-	stream := fmt.Sprintf("spot@public.bookTicker.v3.api@%s", e.symbol)
-	err := e.client.SubscribePublic(stream, func(data []byte) {
-		var ticker BookTickerMessage // Структура из client.go
-		if err := json.Unmarshal(data, &ticker); err != nil {
-			log.Printf("Ошибка десериализации BookTicker JSON: %v", err)
-			return
-		}
-		bid, err := strconv.ParseFloat(ticker.BidPrice, 64)
-		if err != nil {
-			log.Printf("Ошибка преобразования BidPrice: %v", err)
-			return
-		}
-		ask, err := strconv.ParseFloat(ticker.AskPrice, 64)
-		if err != nil {
-			log.Printf("Ошибка преобразования AskPrice: %v", err)
-			return
-		}
-		price := (bid + ask) / 2
-		e.mu.Lock()
-		e.currentPrice = price
-		e.mu.Unlock()
-		select {
-		case priceChan <- price:
-		case <-ctx.Done():
-			return
-		}
-	})
-	if err != nil {
-		log.Printf("Ошибка подписки на цену: %v", err)
+func (c *MEXCClient) buildOrderQuery(req SpotOrderRequest) url.Values {
+	q := url.Values{}
+	q.Set("symbol", req.Symbol)
+	q.Set("side", req.Side)
+	q.Set("type", req.Type)
+	q.Set("quantity", fmt.Sprintf("%.8f", req.Quantity))
+	if req.Type == "LIMIT" {
+		q.Set("price", fmt.Sprintf("%.8f", req.Price))
 	}
+	q.Set("timestamp", strconv.FormatInt(req.Timestamp, 10))
+	return q
 }
 
-// statusToString - преобразование числового статуса в строку
-func statusToString(status int32) string {
-	switch status {
-	case 1:
-		return "NEW"
-	case 2:
-		return "FILLED"
-	case 3:
-		return "PARTIALLY_FILLED"
-	case 4:
-		return "CANCELED"
-	case 5:
-		return "PARTIALLY_CANCELED"
-	default:
-		return fmt.Sprintf("UNKNOWN_%d", status)
-	}
-}
-
-// SubscribeOrders - подписка на обновления ордеров через WebSocket
-func (e *MEXCExchange) SubscribeOrders(ctx context.Context, orderChan chan<- OrderUpdate) {
-	stream := "spot@private.orders.v3.api"
-	err := e.client.SubscribePrivate(stream, func(data []byte) {
-		var order OrderMessage // Структура из client.go
-		if err := json.Unmarshal(data, &order); err != nil {
-			log.Printf("Ошибка десериализации Order JSON: %v", err)
-			return
-		}
-		price, err := strconv.ParseFloat(order.Price, 64)
-		if err != nil {
-			log.Printf("Ошибка преобразования Price: %v", err)
-			return
-		}
-		quantity, err := strconv.ParseFloat(order.Quantity, 64)
-		if err != nil {
-			log.Printf("Ошибка преобразования Quantity: %v", err)
-			return
-		}
-		update := OrderUpdate{
-			OrderID:   order.Id,
-			Price:     price,
-			Quantity:  quantity,
-			Status:    statusToString(order.Status),
-			Timestamp: order.CreateTime,
-		}
-		select {
-		case orderChan <- update:
-		case <-ctx.Done():
-			return
-		}
-	})
-	if err != nil {
-		log.Printf("Ошибка подписки на ордера: %v", err)
-	}
+// sign - генерация HMAC-SHA256 подписи
+func (c *MEXCClient) sign(query string) string {
+	mac := hmac.New(sha256.New, []byte(c.secretKey))
+	mac.Write([]byte(query))
+	return hex.EncodeToString(mac.Sum(nil))
 }
