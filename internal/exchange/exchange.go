@@ -14,6 +14,11 @@ import (
 	"time"
 )
 
+const (
+	Buy  = "BUY"
+	Sell = "SELL"
+)
+
 // SpotOrderRequest - структура для создания ордера через REST API
 type SpotOrderRequest struct {
 	Symbol    string  `json:"symbol"`
@@ -26,18 +31,20 @@ type SpotOrderRequest struct {
 
 // OrderResponse - ответ от API на создание ордера
 type OrderResponse struct {
-	OrderId string `json:"orderId"`
+	Symbol       string `json:"symbol"`
+	OrderID      string `json:"orderId"`
+	OrderListID  int    `json:"orderListId"`
+	Price        string `json:"price"`
+	OrigQty      string `json:"origQty"`
+	Type         string `json:"type"`
+	Side         string `json:"side"`
+	TransactTime int64  `json:"transactTime"`
 }
 
 // NewOrder - создание нового ордера через REST API
-func (c *MEXCClient) PlaceBuyOrder(ctx context.Context, req SpotOrderRequest) (*OrderResponse, error) {
+func (c *MEXCClient) PlaceOrder(ctx context.Context, req SpotOrderRequest) (*OrderResponse, error) {
 	req.Timestamp = time.Now().UnixMilli()
-	// сетим данные для оредра
-	req.Side = "BUY"
-	req.Type = "LIMIT"
 	req.Symbol = c.symbol
-	req.Quantity = 0.001
-	req.Price = 60000
 
 	query := c.buildOrderQuery(req)
 	signature := c.sign(query.Encode())
@@ -50,21 +57,20 @@ func (c *MEXCClient) PlaceBuyOrder(ctx context.Context, req SpotOrderRequest) (*
 	}
 	httpReq.Header.Set("X-MEXC-APIKEY", c.apiKey)
 
-	client := &http.Client{}
-	resp, err := client.Do(httpReq)
+	resp, err := c.client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
+	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("ошибка API: %s, тело: %s", resp.Status, string(body))
 	}
 
 	var orderResp OrderResponse
-	if err := json.NewDecoder(resp.Body).Decode(&orderResp); err != nil {
-		return nil, err
+	if err := json.Unmarshal(body, &orderResp); err != nil {
+		return nil, fmt.Errorf("не удалось декодировать ответ: %w, тело: %s", err, string(body))
 	}
 	return &orderResp, nil
 }

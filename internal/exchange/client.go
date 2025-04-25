@@ -3,12 +3,12 @@ package exchange
 import (
 	"context"
 	"net/http"
+	"time"
 )
 
 // Exchange - интерфейс для работы с биржей
 type Exchange interface {
-	PlaceBuyOrder(ctx context.Context, price, amount float64) (string, error)
-	PlaceSellOrder(ctx context.Context, price, amount float64) (string, error)
+	PlaceOrder(ctx context.Context, price, amount float64) (string, error)
 	SubscribePrice(ctx context.Context, priceChan chan<- float64)
 	SubscribeOrders(ctx context.Context, orderChan chan<- OrderUpdate)
 }
@@ -26,7 +26,9 @@ type MEXCClient struct {
 // NewMEXCClient - конструктор клиента
 func NewMEXCClient(apiKey, secretKey, symbol string) *MEXCClient {
 	return &MEXCClient{
-		client:    &http.Client{},
+		client: &http.Client{
+			Timeout: 2 * time.Second,
+		},
 		apiKey:    apiKey,
 		secretKey: secretKey,
 		symbol:    symbol,

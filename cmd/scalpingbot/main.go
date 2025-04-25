@@ -10,9 +10,14 @@ import (
 	"scalpingbot/internal/bot"
 	"scalpingbot/internal/config"
 	"scalpingbot/internal/exchange"
+	"scalpingbot/internal/worker"
+	"time"
 )
 
 func main() {
+	// Создаём контекст с возможностью отмены
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	// Загружаем конфигурацию через Viper
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -20,14 +25,11 @@ func main() {
 	}
 
 	// Создаём клиента MEXC
-	ex := exchange.NewMEXCExchange(cfg.APIKey, cfg.SecretKey, cfg.Symbol)
-
-	// Создаём контекст с возможностью отмены
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ex := exchange.NewMEXCClient(cfg.APIKey, cfg.SecretKey, cfg.Symbol)
 
 	// Инициализируем и запускаем бота
 	b := bot.NewBot(cfg, ex)
+	worker.Start(ctx, b, time.Second*1)
 	log.Println("Запуск бота...")
 	go b.Start(ctx)
 

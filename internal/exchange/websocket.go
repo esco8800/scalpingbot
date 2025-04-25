@@ -137,6 +137,10 @@ func (c *MEXCClient) connectAndSubscribe(ctx context.Context, stream string, han
 	return nil
 }
 
+func (c *MEXCClient) SubscribeOrders(ctx context.Context, stream string, handler func([]byte)) error {
+	return c.subscribePublic(ctx, stream, handler)
+}
+
 //TODO: проверить тк фунция сгерерирована
 // SubscribePrivate - подписка на приватный WebSocket-канал
 func (c *MEXCClient) SubscribePrivate(ctx context.Context, stream string, handler func([]byte)) error {
