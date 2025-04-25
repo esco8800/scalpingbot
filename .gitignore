@@ -1,3 +1,5 @@
-.idea
-.vscode
+.idea/
+.trunk/
+.vscode/
 config.yaml
+.DS_Store

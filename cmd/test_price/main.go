@@ -14,6 +14,7 @@ import (
 func main() {
 	// Загружаем конфигурацию
 	cfg, err := config.LoadConfig()
+
 	if err != nil {
 		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
 	}
