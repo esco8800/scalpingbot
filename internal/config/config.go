@@ -1,7 +1,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"scalpingbot/internal/tools"
 
 	"github.com/spf13/viper"
 )
@@ -38,7 +40,8 @@ func LoadConfig() (Config, error) {
 	err := viper.ReadInConfig()
 	if err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			fmt.Println("Конфигурационный файл не найден, используются значения по умолчанию")
+			tools.LogErrorf("конфигурационный файл не найден")
+			return Config{}, errors.New("конфигурационный файл не найден")
 		} else {
 			return Config{}, fmt.Errorf("ошибка чтения конфигурации: %v", err)
 		}
@@ -49,6 +52,7 @@ func LoadConfig() (Config, error) {
 	var cfg Config
 	err = viper.Unmarshal(&cfg)
 	if err != nil {
+		tools.LogErrorf("ошибка разбора конфигурации: %v", err)
 		return Config{}, fmt.Errorf("ошибка разбора конфигурации: %v", err)
 	}
 

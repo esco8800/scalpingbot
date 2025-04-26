@@ -7,9 +7,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"scalpingbot/internal/bot"
 	"scalpingbot/internal/config"
 	"scalpingbot/internal/exchange"
+	"scalpingbot/internal/repo"
+	"scalpingbot/internal/workers/buy_v1"
+	"scalpingbot/internal/workers/sell_v1"
 	"scalpingbot/internal/worker"
 	"time"
 )
@@ -24,14 +26,22 @@ func main() {
 		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
 	}
 
-	// Создаём клиента MEXC
+	// Создаём клиента MEXC и сторедж
 	ex := exchange.NewMEXCClient(cfg.APIKey, cfg.SecretKey, cfg.Symbol)
+	storage := repo.NewSafeSet()
 
-	// Инициализируем и запускаем бота
-	b := bot.NewBot(cfg, ex)
-	worker.Start(ctx, b, time.Second*1)
-	log.Println("Запуск бота...")
-	go b.Start(ctx)
+	// Инициализируем и запускаем воркеры
+	log.Println("Запуск воркеров...")
+	buyWorker := buy_v1.NewBot(cfg, ex, storage)
+	err = worker.Start(ctx, buyWorker, time.Second*10)
+	if err != nil {
+		log.Fatalf("Ошибка запуска buyWorker: %v", err)
+	}
+	sellWorker := sell_v1.NewBot(cfg, ex, storage)
+	err = worker.Start(ctx, sellWorker, time.Second*5)
+	if err != nil {
+		log.Fatalf("Ошибка запуска sellWorker: %v", err)
+	}
 
 	// Настраиваем graceful shutdown
 	sigChan := make(chan os.Signal, 1)

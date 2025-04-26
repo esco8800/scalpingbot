@@ -2,9 +2,6 @@ package exchange
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,7 +14,67 @@ import (
 const (
 	Buy  = "BUY"
 	Sell = "SELL"
+
+	// типы ордеров
+	Limit = "LIMIT"
+
+	// статусы ордеров
+	New             = "NEW"
+	PartiallyFilled = "PARTIALLY_FILLED"
+	Filled          = "FILLED"
 )
+
+// OrderInfo — структура одного ордера
+type OrderInfo struct {
+	Symbol      string `json:"symbol"`
+	OrderID     string  `json:"orderId"`
+	Price       string `json:"price"`
+	OrigQty     string `json:"origQty"`
+	ExecutedQty string `json:"executedQty"`
+	Status      string `json:"status"` // NEW, PARTIALLY_FILLED, FILLED, CANCELED, etc.
+	Type        string `json:"type"`
+	Side        string `json:"side"`
+	Time        int64  `json:"time"`
+	UpdateTime  int64  `json:"updateTime"`
+}
+
+// GetAllOrders — получить все ордера по символу
+func (c *MEXCClient) GetAllOrders(ctx context.Context, symbol string) ([]OrderInfo, error) {
+	timestamp := strconv.FormatInt(time.Now().UnixMilli(), 10)
+
+	q := url.Values{}
+	q.Set("symbol", symbol)
+	q.Set("timestamp", timestamp)
+
+	signature := c.sign(q.Encode())
+	q.Set("signature", signature)
+
+	url := fmt.Sprintf("%s/api/v3/allOrders?%s", c.baseURL, q.Encode())
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-MEXC-APIKEY", c.apiKey)
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ошибка API: %s, тело: %s", resp.Status, string(body))
+	}
+
+	var orders []OrderInfo
+	if err := json.Unmarshal(body, &orders); err != nil {
+		return nil, fmt.Errorf("не удалось декодировать ответ: %w, тело: %s", err, string(body))
+	}
+
+	return orders, nil
+}
 
 // SpotOrderRequest - структура для создания ордера через REST API
 type SpotOrderRequest struct {
@@ -50,8 +107,8 @@ func (c *MEXCClient) PlaceOrder(ctx context.Context, req SpotOrderRequest) (*Ord
 	signature := c.sign(query.Encode())
 	query.Set("signature", signature)
 
-	url := fmt.Sprintf("%s/api/v3/order?%s", c.baseURL, query.Encode())
-	httpReq, err := http.NewRequest("POST", url, nil)
+	urlEndpoint := fmt.Sprintf("%s/api/v3/order?%s", c.baseURL, query.Encode())
+	httpReq, err := http.NewRequest("POST", urlEndpoint, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +127,7 @@ func (c *MEXCClient) PlaceOrder(ctx context.Context, req SpotOrderRequest) (*Ord
 
 	var orderResp OrderResponse
 	if err := json.Unmarshal(body, &orderResp); err != nil {
-		return nil, fmt.Errorf("не удалось декодировать ответ: %w, тело: %s", err, string(body))
+		return nil, fmt.Errorf("не удалось декодировать ответ PlaceOrder: %w, тело: %s", err, string(body))
 	}
 	return &orderResp, nil
 }
@@ -86,11 +143,4 @@ func (c *MEXCClient) buildOrderQuery(req SpotOrderRequest) url.Values {
 	}
 	q.Set("timestamp", strconv.FormatInt(req.Timestamp, 10))
 	return q
-}
-
-// sign - генерация HMAC-SHA256 подписи
-func (c *MEXCClient) sign(query string) string {
-	mac := hmac.New(sha256.New, []byte(c.secretKey))
-	mac.Write([]byte(query))
-	return hex.EncodeToString(mac.Sum(nil))
 }

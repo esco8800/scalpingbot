@@ -2,9 +2,11 @@ package worker
 
 import (
 	"context"
-	"log"
-	"time"
 	"errors"
+	"fmt"
+	"log"
+	"scalpingbot/internal/tools"
+	"time"
 )
 
 type Worker interface {
@@ -25,26 +27,29 @@ func Start(ctx context.Context, w Worker, period time.Duration) error {
 
 // runWorkerPeriodically запускает воркер с периодом
 func runWorkerPeriodically(ctx context.Context, w Worker, period time.Duration) {
-	ticker := time.NewTicker(period)
-	defer ticker.Stop()
+	defer func() {
+		if r := recover(); r != nil {
+			log.Print(ctx, "Worker-Panic", fmt.Errorf("%v", r), "worker name ", w.Name())
+			go runWorkerPeriodically(ctx, w, period)
+		}
+	}()
 
 	for {
+		var err error
+
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			go func() {
-				defer func() {
-					if r := recover(); r != nil {
-						log.Printf("worker %s panic: %v", w.Name(), r)
-					}
-				}()
+		default:
+			err = w.Process(ctx)
+		}
 
-
-				if err := w.Process(ctx); err != nil {
-					log.Printf("worker %s error: %v", w.Name(), err)
-				}
-			}()
+		if err != nil {
+			tools.LogErrorf("Worker-Error name: %s, err: %v", err, w.Name())
+			time.Sleep(period)
+		} else {
+			log.Print("Worker job success", "worker name ", w.Name())
+			time.Sleep(period)
 		}
 	}
 }
