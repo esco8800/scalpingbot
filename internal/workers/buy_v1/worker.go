@@ -6,6 +6,7 @@ import (
 	"scalpingbot/internal/config"
 	"scalpingbot/internal/exchange"
 	"scalpingbot/internal/repo"
+	"scalpingbot/internal/tools"
 	"time"
 )
 
@@ -29,6 +30,12 @@ func NewBot(cfg config.Config, ex exchange.Exchange, storage repo.Repo) *Bot {
 }
 
 func (b *Bot) Process(ctx context.Context) error {
+	// чекаем тренд и ждем
+	err := b.SleepTimeout(ctx)
+	if err != nil {
+		return err
+	}
+
 	accountInfo, err := b.exchange.GetAccountInfo(ctx)
 	if err != nil {
 		return err
@@ -62,6 +69,19 @@ func (b *Bot) Process(ctx context.Context) error {
 		log.Printf("Баланс usdt меньше заданного размера ордера, ожидание...")
 		time.Sleep(time.Second * 15)
 	}
+	return nil
+}
+
+func (b *Bot) SleepTimeout(ctx context.Context) (error) {
+	// получаем klines
+	klines, err := b.exchange.GetKlines(ctx, b.config.Symbol, exchange.KlineInterval1m, 10)
+	if err != nil {
+		return err
+	}
+	
+	timeout := tools.AdjustTimeout(b.config.BaseBuyTimeout, klines)
+	log.Printf("Спим таймаут: %d", timeout)
+	time.Sleep(time.Second * time.Duration(timeout))
 	return nil
 }
 

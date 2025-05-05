@@ -20,27 +20,38 @@ loop:
 		k := klines[i]
 		switch {
 		case k.Close < k.Open:
-			log.Printf("kline #%d: close < open, redCount: %d", i, redCount)
 			if greenCount > 0 {
 				break loop
 			}
 			redCount++
+			log.Printf("kline #%d: close < open, redCount: %d", i, redCount)
 		case k.Close > k.Open:
-			log.Printf("kline #%d: close > open, greenCount: %d", i, greenCount)
 			if redCount > 0 {
 				break loop
 			}
 			greenCount++
+			log.Printf("kline #%d: close > open, greenCount: %d", i, greenCount)
 		default:
+			// если красных больше, то увеличиваем красный счетчик
+			if redCount > greenCount {
+				redCount++
+				continue loop
+			}
+			// если зеленых больше, то увеличиваем зеленый счетчик
+			if greenCount > redCount {
+				greenCount++
+				continue loop
+			}
 			log.Printf("kline #%d: close == open, break loop", i)
 			break loop
 		}
 	}
 
-	if redCount > 0 {
+	// начиная с 2 свеч редактируем таймаут
+	if redCount > 1 {
 		return int(math.Round(float64(baseTimeout) + float64(baseTimeout*redCount)))
 	}
-	if greenCount > 0 {
+	if greenCount > 1 {
 		return int(math.Round(float64(baseTimeout) / float64(greenCount)))
 	}
 

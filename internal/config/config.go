@@ -19,6 +19,7 @@ type Config struct {
 	APIKey           string  `mapstructure:"api_key"`
 	SecretKey        string  `mapstructure:"secret_key"`
 	Symbol           string  `mapstructure:"symbol"` // Например, "KASUSDT"
+	BaseBuyTimeout   int     `mapstructure:"base_buy_timeout"`
 }
 
 // LoadConfig - загрузка конфигурации через Viper

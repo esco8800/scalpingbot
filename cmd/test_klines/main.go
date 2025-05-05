@@ -35,7 +35,7 @@ func main() {
 	log.Printf("Klines len: %d", len(klines))
 
 	// Рассчитываем таймаут
-	timeout := tools.AdjustTimeout(10, klines)
+	timeout := tools.AdjustTimeout(cfg.BaseBuyTimeout, klines)
 	log.Printf("Timeout: %d", timeout)
 
 	// Настраиваем graceful shutdown
