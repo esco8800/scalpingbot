@@ -33,7 +33,7 @@ func main() {
 	// Инициализируем и запускаем воркеры
 	log.Println("Запуск воркеров...")
 	buyWorker := buy_v1.NewBot(cfg, ex, storage)
-	err = worker.Start(ctx, buyWorker, time.Second*10)
+	err = worker.Start(ctx, buyWorker, time.Second*15)
 	if err != nil {
 		log.Fatalf("Ошибка запуска buyWorker: %v", err)
 	}
