@@ -6,6 +6,7 @@ import (
 	"scalpingbot/internal/config"
 	"scalpingbot/internal/exchange"
 	"scalpingbot/internal/repo"
+	"scalpingbot/internal/tgbot"
 	"scalpingbot/internal/tools"
 	"time"
 )
@@ -30,6 +31,12 @@ func NewBot(cfg config.Config, ex exchange.Exchange, storage repo.Repo) *Bot {
 }
 
 func (b *Bot) Process(ctx context.Context) error {
+	// заглушка для переключения статуса бота
+	if !b.storage.Has(tgbot.WorkerStatusKey) {
+		log.Printf("Воркер %s выключен", b.Name())
+		return nil
+	}
+
 	// чекаем тренд и ждем
 	err := b.SleepTimeout(ctx)
 	if err != nil {

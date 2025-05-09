@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"io"
 	"log"
 	"os"
 	"os/signal"
+	"scalpingbot/internal/buffer"
 	"scalpingbot/internal/logger"
+	"scalpingbot/internal/tgbot"
 	"syscall"
 
 	"scalpingbot/internal/config"
@@ -18,6 +21,11 @@ import (
 )
 
 func main() {
+	// Перенаправляем вывод в консоль и в буфер (чтобы потом отправить в телеграм)
+	ringBuffer := buffer.NewRingBuffer(10)
+	multiWriter := io.MultiWriter(os.Stdout, ringBuffer)
+	log.SetOutput(multiWriter)
+
 	// Создаём контекст с возможностью отмены
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -26,6 +34,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
 	}
+
+	// Инициализация Telegram бота
+	bot := tgbot.NewTelegramBot(cfg.TgToken, cfg.TgChatID, ringBuffer)
+	go bot.Start()
 
 	logLoger := logger.SetupLogger(cfg.TgToken, cfg.TgChatID)
 
