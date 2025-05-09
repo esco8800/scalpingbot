@@ -50,11 +50,14 @@ func (rb *RingBuffer) GetMessages() string {
 
 	var result []string
 
+	// Если буфер заполнен, возвращаем данные начиная с текущего индекса до конца и с начала до текущего индекса
 	if rb.full {
 		result = append(result, rb.messages[rb.index:]...)
+		result = append(result, rb.messages[:rb.index]...)
+	} else {
+		// Если буфер не полный, возвращаем только заполненные ячейки
+		result = append(result, rb.messages[:rb.index]...)
 	}
-
-	result = append(result, rb.messages[:rb.index]...)
 
 	return strings.Join(result, "\n")
 }

@@ -34,16 +34,25 @@ func main() {
 	if err != nil {
 		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
 	}
+	// Создаём репозиторий для хранения данных
+	storage := repo.NewSafeSet()
 
 	// Инициализация Telegram бота
-	bot := tgbot.NewTelegramBot(cfg.TgToken, cfg.TgChatID, ringBuffer)
-	go bot.Start()
+	bot, err := tgbot.NewTelegramBot(cfg.TgToken, cfg.TgChatID, ringBuffer, storage)
+	if err != nil {
+		log.Fatalf("Ошибка инициализации Telegram бота: %v", err)
+	}
+	// Запускаем тг бота в отдельной горутине для неблокирующего вызова
+	go func() {
+		if err := bot.Start(ctx); err != nil {
+			log.Fatalf("Bot stopped with error: %v", err)
+		}
+	}()
 
 	logLoger := logger.SetupLogger(cfg.TgToken, cfg.TgChatID)
 
 	// Создаём клиента MEXC и сторедж
 	ex := exchange.NewMEXCClient(cfg.APIKey, cfg.SecretKey, cfg.Symbol)
-	storage := repo.NewSafeSet()
 
 	// Инициализируем и запускаем воркеры
 	log.Println("Запуск воркеров...")

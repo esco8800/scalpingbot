@@ -21,7 +21,7 @@ type Config struct {
 	Symbol           string  `mapstructure:"symbol" json:"symbol,omitempty"` // Например, "KASUSDT"
 	BaseBuyTimeout   int     `mapstructure:"base_buy_timeout" json:"base_buy_timeout,omitempty"`
 	TgToken          string  `mapstructure:"tg_token" json:"token,omitempty"`
-	TgChatID         string  `mapstructure:"tg_chat_id"  json:"chat_id,omitempty"`
+	TgChatID         int64   `mapstructure:"tg_chat_id"  json:"chat_id,omitempty"`
 }
 
 // LoadConfig - загрузка конфигурации через Viper

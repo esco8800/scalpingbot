@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/sirupsen/logrus"
 )
@@ -71,8 +72,8 @@ type logrusLogger struct {
 	telegram *TelegramLogger
 }
 
-func SetupLogger(token, chatID string) Logger {
-	tgLogger := NewTelegramLogger(token, chatID)
+func SetupLogger(token string, chatID int64) Logger {
+	tgLogger := NewTelegramLogger(token, strconv.FormatInt(chatID, 10))
 	log := logrus.New()
 
 	// Лог в консоль

@@ -33,7 +33,7 @@ func NewBot(cfg config.Config, ex exchange.Exchange, storage repo.Repo) *Bot {
 func (b *Bot) Process(ctx context.Context) error {
 	// заглушка для переключения статуса бота
 	if !b.storage.Has(tgbot.WorkerStatusKey) {
-		log.Printf("Воркер %s выключен", b.Name())
+		log.Printf("Воркер %s в тг спящем режиме", b.Name())
 		return nil
 	}
 
