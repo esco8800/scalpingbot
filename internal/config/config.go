@@ -10,16 +10,18 @@ import (
 
 // Config - структура конфигурации бота
 type Config struct {
-	ProfitPercent    float64 `mapstructure:"profit_percent"`
-	DropPercent      float64 `mapstructure:"drop_percent"`
-	DelaySeconds     int     `mapstructure:"delay_seconds"`
-	OrderSize        float64 `mapstructure:"order_size"`
-	Deposit          float64 `mapstructure:"deposit"`
-	AvailableDeposit float64 `mapstructure:"-"` // Не читаем из конфига, вычисляем
-	APIKey           string  `mapstructure:"api_key"`
-	SecretKey        string  `mapstructure:"secret_key"`
-	Symbol           string  `mapstructure:"symbol"` // Например, "KASUSDT"
-	BaseBuyTimeout   int     `mapstructure:"base_buy_timeout"`
+	ProfitPercent    float64 `mapstructure:"profit_percent" json:"profit_percent,omitempty"`
+	DropPercent      float64 `mapstructure:"drop_percent" json:"drop_percent,omitempty"`
+	DelaySeconds     int     `mapstructure:"delay_seconds" json:"delay_seconds,omitempty"`
+	OrderSize        float64 `mapstructure:"order_size" json:"order_size,omitempty"`
+	Deposit          float64 `mapstructure:"deposit" json:"deposit,omitempty"`
+	AvailableDeposit float64 `mapstructure:"-" json:"available_deposit,omitempty"` // Не читаем из конфига, вычисляем
+	APIKey           string  `mapstructure:"api_key" json:"api_key,omitempty"`
+	SecretKey        string  `mapstructure:"secret_key" json:"secret_key,omitempty"`
+	Symbol           string  `mapstructure:"symbol" json:"symbol,omitempty"` // Например, "KASUSDT"
+	BaseBuyTimeout   int     `mapstructure:"base_buy_timeout" json:"base_buy_timeout,omitempty"`
+	TgToken          string  `mapstructure:"tg_token" json:"token,omitempty"`
+	TgChatID         string  `mapstructure:"tg_chat_id"  json:"chat_id,omitempty"`
 }
 
 // LoadConfig - загрузка конфигурации через Viper

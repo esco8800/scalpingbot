@@ -72,13 +72,13 @@ func (b *Bot) Process(ctx context.Context) error {
 	return nil
 }
 
-func (b *Bot) SleepTimeout(ctx context.Context) (error) {
+func (b *Bot) SleepTimeout(ctx context.Context) error {
 	// получаем klines
 	klines, err := b.exchange.GetKlines(ctx, b.config.Symbol, exchange.KlineInterval1m, 10)
 	if err != nil {
 		return err
 	}
-	
+
 	timeout := tools.AdjustTimeout(b.config.BaseBuyTimeout, klines)
 	log.Printf("Спим таймаут: %d", timeout)
 	time.Sleep(time.Second * time.Duration(timeout))

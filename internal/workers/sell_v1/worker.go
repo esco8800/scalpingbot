@@ -7,6 +7,7 @@ import (
 	"scalpingbot/internal/exchange"
 	"scalpingbot/internal/repo"
 	"strconv"
+	"time"
 )
 
 // WorkerFunc — тип для воркера
@@ -38,6 +39,7 @@ func (b *Bot) Process(ctx context.Context) error {
 	log.Printf("Открытых ордеров на продажу: %d", sellCount)
 
 	for _, order := range allOrders {
+		// Если ордер уже закрыт, то открываем продажу
 		if b.storage.Has(order.OrderID) && order.Status == exchange.Filled {
 			newPrice, err := strconv.ParseFloat(order.Price, 64)
 			if err != nil {
@@ -60,7 +62,60 @@ func (b *Bot) Process(ctx context.Context) error {
 				return err
 			}
 			log.Printf("Ордер на продажу размещен: %s", orderResp.OrderID)
+			// Удаляем ордер из стораджа
 			b.storage.Remove(order.OrderID)
+		}
+
+		// Отмена старых незаполненных ордеров
+		if b.storage.Has(order.OrderID) && (order.Status == exchange.New) {
+			orderAge := time.Now().Sub(time.UnixMilli(order.Time))
+			if orderAge > 10*time.Minute {
+				err := b.exchange.CancelOrder(ctx, b.config.Symbol, order.OrderID)
+				if err != nil {
+					log.Printf("Ошибка отмены старого ордера %s: %v", order.OrderID, err)
+					return err
+				}
+				// Удаляем ордер из стораджа
+				b.storage.Remove(order.OrderID)
+				log.Printf("Старый ордер отменён: %s (статус: %s, возраст: %s)", order.OrderID, order.Status, orderAge)
+			}
+		}
+
+		// Отмена старых частично заполненных ордеров
+		if b.storage.Has(order.OrderID) && order.Status == exchange.PartiallyFilled {
+			orderAge := time.Now().Sub(time.UnixMilli(order.Time))
+			if orderAge > 10*time.Minute {
+				// сначала отменяем старый ордер
+				err := b.exchange.CancelOrder(ctx, b.config.Symbol, order.OrderID)
+				if err != nil {
+					log.Printf("Ошибка отмены старого ордера %s: %v", order.OrderID, err)
+					return err
+				}
+				// затем создаем новый ордер на продажу на сумму заполненной части по текущей цене (тк она по идее выше цены старого ордера)
+				newPrice, err := b.exchange.GetPrice(ctx, "KASUSDT")
+				if err != nil {
+					return err
+				}
+				qty, err := strconv.ParseFloat(order.ExecutedQty, 64)
+				if err != nil {
+					return err
+				}
+				sellOrder := exchange.SpotOrderRequest{
+					Symbol:   b.config.Symbol,
+					Side:     exchange.Sell,
+					Type:     exchange.Limit,
+					Quantity: qty,
+					Price:    newPrice,
+				}
+				orderResp, err := b.exchange.PlaceOrder(ctx, sellOrder)
+				if err != nil {
+					return err
+				}
+				log.Printf("Ордер на продажу от частичного: %s oldPrice: %s newPrice %.6f", orderResp.OrderID, order.Price, newPrice)
+				// Удаляем ордер из стораджа
+				b.storage.Remove(order.OrderID)
+				log.Printf("Старый ордер отменён: %s (статус: %s, возраст: %s)", order.OrderID, order.Status, orderAge)
+			}
 		}
 	}
 	return nil

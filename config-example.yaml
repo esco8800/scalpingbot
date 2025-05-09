@@ -7,3 +7,5 @@ api_key: "your_mexc_api_key"
 secret_key: "your_mexc_secret_key"
 symbol: "KASUSDT" # Торгуем Kaspa против USDT
 base_buy_timeout: 30 # Таймаут в секундах для первой покупки
+tg_chat_id: "123" # ID чата для отправки сообщений
+tg_token: "123" # Токен бота Telegram

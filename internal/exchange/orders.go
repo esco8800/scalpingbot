@@ -132,6 +132,37 @@ func (c *MEXCClient) PlaceOrder(ctx context.Context, req SpotOrderRequest) (*Ord
 	return &orderResp, nil
 }
 
+func (c *MEXCClient) CancelOrder(ctx context.Context, symbol, orderID string) error {
+	params := url.Values{}
+	params.Set("symbol", symbol)
+	params.Set("orderId", orderID)
+	params.Set("timestamp", strconv.FormatInt(time.Now().UnixMilli(), 10))
+
+	signature := c.sign(params.Encode())
+	params.Set("signature", signature)
+
+	url := fmt.Sprintf("%s/api/v3/order?%s", c.baseURL, params.Encode())
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return fmt.Errorf("создание запроса отмены ордера: %w", err)
+	}
+	req.Header.Set("X-MEXC-APIKEY", c.apiKey)
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("запрос отмены ордера: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("ошибка API отмены ордера: %s, тело: %s", resp.Status, string(body))
+	}
+
+	return nil
+}
+
 func (c *MEXCClient) buildOrderQuery(req SpotOrderRequest) url.Values {
 	q := url.Values{}
 	q.Set("symbol", req.Symbol)

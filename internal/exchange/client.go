@@ -16,6 +16,7 @@ type Exchange interface {
 	PlaceOrder(ctx context.Context, req SpotOrderRequest) (*OrderResponse, error)
 	GetAllOrders(ctx context.Context, symbol string) ([]OrderInfo, error)
 	GetKlines(ctx context.Context, symbol, interval string, limit int) ([]Kline, error)
+	CancelOrder(ctx context.Context, symbol, orderID string) error
 	//SubscribePrice(ctx context.Context, priceChan chan<- float64)
 	//SubscribeOrders(ctx context.Context, orderChan chan<- OrderUpdate)
 }

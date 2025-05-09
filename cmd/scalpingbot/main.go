@@ -5,14 +5,15 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"scalpingbot/internal/logger"
 	"syscall"
 
 	"scalpingbot/internal/config"
 	"scalpingbot/internal/exchange"
 	"scalpingbot/internal/repo"
+	"scalpingbot/internal/worker"
 	"scalpingbot/internal/workers/buy_v1"
 	"scalpingbot/internal/workers/sell_v1"
-	"scalpingbot/internal/worker"
 	"time"
 )
 
@@ -26,6 +27,8 @@ func main() {
 		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
 	}
 
+	logLoger := logger.SetupLogger(cfg.TgToken, cfg.TgChatID)
+
 	// Создаём клиента MEXC и сторедж
 	ex := exchange.NewMEXCClient(cfg.APIKey, cfg.SecretKey, cfg.Symbol)
 	storage := repo.NewSafeSet()
@@ -33,12 +36,12 @@ func main() {
 	// Инициализируем и запускаем воркеры
 	log.Println("Запуск воркеров...")
 	buyWorker := buy_v1.NewBot(cfg, ex, storage)
-	err = worker.Start(ctx, buyWorker, time.Second*5)
+	err = worker.Start(ctx, buyWorker, time.Second*5, logLoger)
 	if err != nil {
 		log.Fatalf("Ошибка запуска buyWorker: %v", err)
 	}
 	sellWorker := sell_v1.NewBot(cfg, ex, storage)
-	err = worker.Start(ctx, sellWorker, time.Second*5)
+	err = worker.Start(ctx, sellWorker, time.Second*5, logLoger)
 	if err != nil {
 		log.Fatalf("Ошибка запуска sellWorker: %v", err)
 	}
