@@ -5,7 +5,10 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"github.com/gorilla/websocket"
 	"net/http"
+	"scalpingbot/internal/logger"
+	"sync"
 	"time"
 )
 
@@ -17,31 +20,36 @@ type Exchange interface {
 	GetAllOrders(ctx context.Context, symbol string) ([]OrderInfo, error)
 	GetKlines(ctx context.Context, symbol, interval string, limit int) ([]Kline, error)
 	CancelOrder(ctx context.Context, symbol, orderID string) error
-	//SubscribePrice(ctx context.Context, priceChan chan<- float64)
-	//SubscribeOrders(ctx context.Context, orderChan chan<- OrderUpdate)
+	SubscribeOrderUpdates(ctx context.Context, updateCh chan<- OrderUpdate) error
 }
 
 // MEXCClient - клиент для работы с MEXC API
 type MEXCClient struct {
-	client    *http.Client
-	apiKey    string
-	secretKey string
-	symbol    string
-	baseURL   string
-	wsURL     string
+	client      *http.Client
+	apiKey      string
+	secretKey   string
+	symbol      string
+	baseURL     string
+	wsURL       string
+	conn        *websocket.Conn
+	connMu      sync.RWMutex
+	reconnectCh chan struct{}
+	logLogger   logger.Logger
 }
 
 // NewMEXCClient - конструктор клиента
-func NewMEXCClient(apiKey, secretKey, symbol string) *MEXCClient {
+func NewMEXCClient(apiKey, secretKey, symbol string, logLogger logger.Logger) *MEXCClient {
 	return &MEXCClient{
 		client: &http.Client{
 			Timeout: 2 * time.Second,
 		},
-		apiKey:    apiKey,
-		secretKey: secretKey,
-		symbol:    symbol,
-		baseURL:   "https://api.mexc.com",
-		wsURL:     "wss://wbs.mexc.com/ws",
+		apiKey:      apiKey,
+		secretKey:   secretKey,
+		symbol:      symbol,
+		baseURL:     "https://api.mexc.com",
+		wsURL:       "wss://wbs.mexc.com/ws",
+		reconnectCh: make(chan struct{}, 1),
+		logLogger:   logLogger,
 	}
 }
 

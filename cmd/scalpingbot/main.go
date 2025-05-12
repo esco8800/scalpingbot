@@ -52,7 +52,7 @@ func main() {
 	logLoger := logger.SetupLogger(cfg.TgToken, cfg.TgChatID)
 
 	// Создаём клиента MEXC и сторедж
-	ex := exchange.NewMEXCClient(cfg.APIKey, cfg.SecretKey, cfg.Symbol)
+	ex := exchange.NewMEXCClient(cfg.APIKey, cfg.SecretKey, cfg.Symbol, logLoger)
 
 	// Инициализируем и запускаем воркеры
 	log.Println("Запуск воркеров...")

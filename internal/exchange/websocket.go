@@ -2,184 +2,199 @@ package exchange
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"log"
-	"strconv"
-	"time"
-
 	"github.com/gorilla/websocket"
+	"log"
+	"time"
 )
 
-// TODO изменить json нотацию
-// BookTickerMessage - структура для данных WebSocket о ценах (JSON)
-type BookTickerMessage struct {
-	Symbol   string `json:"Symbol"`
-	BidPrice string `json:"BidPrice"`
-	BidQty   string `json:"BidQty"`
-	AskPrice string `json:"AskPrice"`
-	AskQty   string `json:"AskQty"`
-	Time     int64  `json:"Time"`
-}
+// Таймеры для периодического обновления соединения и пинга
+const reconnectInterval = 30 * time.Minute
+const pingInterval = 30 * time.Second
+const maxReconnectAttempts = 5
 
-// TODO изменить json нотацию
-// OrderMessage - структура для данных WebSocket об ордерах (JSON)
-type OrderMessage struct {
-	Symbol     string `json:"Symbol"`
-	Id         string `json:"Id"`
-	Price      string `json:"Price"`
-	Quantity   string `json:"Quantity"`
-	TradeId    string `json:"TradeId"`
-	Status     int32  `json:"Status"`
-	CreateTime int64  `json:"CreateTime"`
-}
-
-// OrderUpdate - структура для обновлений состояния ордеров
+// OrderUpdate - структура для обновлений ордеров
 type OrderUpdate struct {
-	OrderID   string
-	Price     float64
-	Quantity  float64
-	Status    string
-	Timestamp int64
+	Symbol    string `json:"s"`
+	OrderId   string `json:"i"`
+	Status    string `json:"S"`
+	Price     string `json:"p"`
+	Quantity  string `json:"q"`
+	Timestamp int64  `json:"T"`
 }
 
-const (
-	reconnectInterval = 5 * time.Second
-	readTimeout       = 10 * time.Second
-	writeTimeout      = 5 * time.Second
-	maxReconnects     = 3
-)
+// SubscribeOrderUpdates - подписка на обновления ордеров через WebSocket
+func (c *MEXCClient) SubscribeOrderUpdates(ctx context.Context, updateCh chan<- OrderUpdate) error {
+	// Функция для создания нового WebSocket соединения
+	connect := func() error {
+		c.connMu.Lock()
+		defer c.connMu.Unlock()
 
-//TODO: Добавить обработку ошибок, подумать о реконнектах, подумать о том, чтобы как закрывать соединение при ошибке
-func (c *MEXCClient) SubscribePrice(ctx context.Context, priceChan chan<- float64) error {
-	stream := fmt.Sprintf("spot@public.bookTicker.v3.api@%s", c.symbol)
-	return c.subscribePublic(ctx, stream, func(message []byte) {
-		log.Printf("Price Update: %s", string(message))
-		return
-		// Обработка сообщения и извлечение цены
-		// var ticker BookTickerMessage
-		// if err := json.Unmarshal(message, &ticker); err != nil {
-		// 	log.Printf("Ошибка десериализации сообщения: %v", err)
-		// 	return
-		// }
-		// price, err := strconv.ParseFloat(ticker.BidPrice, 64)
-		// if err != nil {
-		// 	log.Printf("Ошибка преобразования BidPrice: %v", err)
-		// 	return
-		// }
-		// select {
-		// case priceChan <- price:
-		// case <-ctx.Done():
-		// 	return
-		// }
-	})
-}
+		// Формируем параметры подписки
+		timestamp := time.Now().UnixMilli()
+		query := fmt.Sprintf("apiKey=%s&reqTime=%d", c.apiKey, timestamp)
+		signature := c.sign(query)
 
-// SubscribePublic - подписка на публичный WebSocket-канал с ограничением на количество реконнектов
-func (c *MEXCClient) subscribePublic(ctx context.Context, stream string, handler func([]byte)) error {
-	reconnectAttempts := 0
-
-	for {
-		err := c.connectAndSubscribe(ctx, stream, handler)
+		// Устанавливаем соединение
+		url := fmt.Sprintf("%s?apiKey=%s&reqTime=%d&signature=%s", c.wsURL, c.apiKey, timestamp, signature)
+		conn, _, err := websocket.DefaultDialer.DialContext(ctx, url, nil)
 		if err != nil {
-			log.Printf("Ошибка подписки: %v. Попытка повторного подключения %d из %d через %v...", err, reconnectAttempts+1, maxReconnects, reconnectInterval)
-			reconnectAttempts++
-			if reconnectAttempts >= maxReconnects {
-				return fmt.Errorf("превышено максимальное количество попыток подключения: %v", err)
-			}
-			time.Sleep(reconnectInterval)
-		} else {
-			// Сбросить счетчик, если подключение успешно
-			reconnectAttempts = 0
+			log.Printf("Ошибка подключения к WebSocket: %v", err)
+			return fmt.Errorf("failed to connect to WebSocket: %w", err)
 		}
-	}
-}
 
-func (c *MEXCClient) connectAndSubscribe(ctx context.Context, stream string, handler func([]byte)) error {
-	conn, _, err := websocket.DefaultDialer.Dial(c.wsURL, nil)
-	if err != nil {
-		return fmt.Errorf("ошибка подключения к WebSocket: %v", err)
+		// Устанавливаем таймауты
+		conn.SetReadDeadline(time.Now().Add(time.Minute))
+		conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+
+		// Подписываемся на обновления ордеров
+		subscribeMsg := map[string]interface{}{
+			"method": "SUBSCRIPTION",
+			"params": []string{"spot@private.order"},
+		}
+		if err := conn.WriteJSON(subscribeMsg); err != nil {
+			conn.Close()
+			return fmt.Errorf("failed to subscribe: %w", err)
+		}
+
+		log.Printf("Успещно подписались на обновления ордеров")
+		c.conn = conn
+		return nil
 	}
 
-	if err := conn.SetReadDeadline(time.Now().Add(readTimeout)); err != nil {
-		log.Printf("Ошибка установки дедлайна чтения: %v", err)
-		return fmt.Errorf("ошибка установки дедлайна чтения: %v", err)
-	}
-	
-	if err := conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
-		log.Printf("Ошибка установки дедлайна записи: %v", err)
-		return fmt.Errorf("ошибка установки дедлайна записи: %v", err)
-	}
-
+	// Запускаем горутину для обработки сообщений
 	go func() {
+		reconnectTimer := time.NewTimer(reconnectInterval)
+		pingTicker := time.NewTicker(pingInterval)
 		defer func() {
-			if err := conn.Close(); err != nil {
-				log.Printf("Ошибка закрытия WebSocket соединения: %v", err)
+			reconnectTimer.Stop()
+			pingTicker.Stop()
+			c.connMu.Lock()
+			if c.conn != nil {
+				c.conn.Close()
+				c.conn = nil
 			}
+			c.connMu.Unlock()
 		}()
-		for {
-			_, message, err := conn.ReadMessage()
-			if err != nil {
-				log.Printf("Ошибка чтения WebSocket: %v", err)
-				return
+
+		// Первоначальное подключение
+		for attempt := 0; attempt < maxReconnectAttempts; attempt++ {
+			if err := connect(); err == nil {
+				log.Printf("Первоначальное вебсокет подключение успешно")
+				break
 			}
-			handler(message)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Second * time.Duration(attempt+1)):
+				continue
+			}
+		}
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+
+			case <-c.reconnectCh:
+				// Принудительное переподключение
+				c.connMu.Lock()
+				if c.conn != nil {
+					c.conn.Close()
+					c.conn = nil
+				}
+				c.connMu.Unlock()
+
+				for attempt := 0; attempt < maxReconnectAttempts; attempt++ {
+					if err := connect(); err == nil {
+						log.Printf("Реконнект к вебсокету успешно")
+						break
+					}
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(time.Second * time.Duration(attempt+1)):
+						continue
+					}
+				}
+
+			case <-reconnectTimer.C:
+				// Периодическое переподключение
+				select {
+				case c.reconnectCh <- struct{}{}:
+					// Сигнал отправлен
+				default:
+					log.Printf("reconnectCh full, skipping signal")
+				}
+				log.Printf("Периодическое переподключение к вебсокету")
+				reconnectTimer.Reset(reconnectInterval)
+
+			case <-pingTicker.C:
+				// Отправка пинга для поддержания соединения
+				c.connMu.RLock()
+				if c.conn != nil {
+					if err := c.conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(5*time.Second)); err != nil {
+						select {
+						case c.reconnectCh <- struct{}{}:
+							// Сигнал отправлен
+						default:
+							log.Printf("reconnectCh full, skipping signal")
+						}
+					}
+					log.Printf("Отправлен пинг на вебсокет ордеров соединение")
+				}
+				c.connMu.RUnlock()
+
+			default:
+				// Чтение сообщений
+				c.connMu.RLock()
+				if c.conn == nil {
+					c.connMu.RUnlock()
+					log.Printf("Вебсокет соединение закрыто, пропускаем чтение")
+					continue
+				}
+
+				var msg map[string]interface{}
+				err := c.conn.ReadJSON(&msg)
+				c.connMu.RUnlock()
+
+				if err != nil {
+					if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+						log.Printf("Читаем из закрытого соедининия: %v", err)
+						select {
+						case c.reconnectCh <- struct{}{}:
+							// Сигнал отправлен
+						default:
+							log.Printf("reconnectCh full, skipping signal")
+						}
+						continue
+					}
+					log.Printf("Ошибка чтения сообщения: %v", err)
+					select {
+					case c.reconnectCh <- struct{}{}:
+						// Сигнал отправлен
+					default:
+						log.Printf("reconnectCh full, skipping signal")
+					}
+					continue
+				}
+
+				// Обработка обновлений ордеров
+				if data, ok := msg["d"].(map[string]interface{}); ok {
+					var update OrderUpdate
+					dataBytes, _ := json.Marshal(data)
+					if err := json.Unmarshal(dataBytes, &update); err == nil {
+						select {
+						case updateCh <- update:
+						case <-ctx.Done():
+							return
+						}
+					}
+				}
+			}
 		}
 	}()
-
-	msg := map[string]interface{}{
-		"method": "SUBSCRIPTION",
-		"params": []string{stream},
-	}
-	if err := conn.WriteJSON(msg); err != nil {
-		return fmt.Errorf("ошибка отправки сообщения подписки: %v", err)
-	}
 
 	return nil
-}
-
-func (c *MEXCClient) SubscribeOrders(ctx context.Context, stream string, handler func([]byte)) error {
-	return c.subscribePublic(ctx, stream, handler)
-}
-
-//TODO: проверить тк фунция сгерерирована
-// SubscribePrivate - подписка на приватный WebSocket-канал
-func (c *MEXCClient) SubscribePrivate(ctx context.Context, stream string, handler func([]byte)) error {
-	conn, _, err := websocket.DefaultDialer.Dial(c.wsURL, nil)
-	if err != nil {
-		return fmt.Errorf("ошибка подключения к WebSocket: %v", err)
-	}
-
-	timestamp := time.Now().UnixMilli()
-	query := fmt.Sprintf("apiKey=%s&reqTime=%d", c.apiKey, timestamp)
-	signature := c.sign(query)
-	authMsg := map[string]interface{}{
-		"method": "LOGIN",
-		"params": map[string]string{
-			"apiKey":    c.apiKey,
-			"reqTime":   strconv.FormatInt(timestamp, 10),
-			"signature": signature,
-		},
-	}
-	if err := conn.WriteJSON(authMsg); err != nil {
-		conn.Close()
-		return fmt.Errorf("ошибка аутентификации WebSocket: %v", err)
-	}
-
-	go func() {
-		defer conn.Close()
-		for {
-			_, message, err := conn.ReadMessage()
-			if err != nil {
-				log.Printf("Ошибка чтения WebSocket: %v", err)
-				return
-			}
-			handler(message)
-		}
-	}()
-
-	msg := map[string]interface{}{
-		"method": "SUBSCRIPTION",
-		"params": []string{stream},
-	}
-	return conn.WriteJSON(msg)
 }
