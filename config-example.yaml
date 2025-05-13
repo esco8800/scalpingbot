@@ -1,11 +1,7 @@
-profit_percent: 0.5   # Процент прибыли
-drop_percent: 1.5     # Процент падения
-delay_seconds: 20     # Задержка в секундах
-order_size: 50.0      # Размер ордера в долларах (не USDT)
-deposit: 500.0        # Общий депозит
+profit_percent: 0.2   # Процент прибыли
+order_size: 20.0      # Размер ордера (не в USDT). Подбирать, чтобы можно было поставить ~400 ордеров на ваш деп
 api_key: "your_mexc_api_key"
 secret_key: "your_mexc_secret_key"
 symbol: "KASUSDT" # Торгуем Kaspa против USDT
-base_buy_timeout: 30 # Таймаут в секундах для первой покупки
 tg_chat_id: 123 # ID чата для отправки сообщений
 tg_token: "123" # Токен бота Telegram

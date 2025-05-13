@@ -45,13 +45,12 @@ func (c *MEXCClient) SubscribeOrderUpdates(ctx context.Context, updateCh chan<- 
 		}
 
 		// Устанавливаем таймауты
-		conn.SetReadDeadline(time.Now().Add(time.Minute))
 		conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 
 		// Подписываемся на обновления ордеров
 		subscribeMsg := map[string]interface{}{
 			"method": "SUBSCRIPTION",
-			"params": []string{"spot@private.order"},
+			"params": []string{"spot@private.orders.v3.api"},
 		}
 		if err := conn.WriteJSON(subscribeMsg); err != nil {
 			conn.Close()
@@ -156,6 +155,7 @@ func (c *MEXCClient) SubscribeOrderUpdates(ctx context.Context, updateCh chan<- 
 				}
 
 				var msg map[string]interface{}
+				c.conn.SetReadDeadline(time.Now().Add(time.Minute))
 				err := c.conn.ReadJSON(&msg)
 				c.connMu.RUnlock()
 
@@ -170,7 +170,7 @@ func (c *MEXCClient) SubscribeOrderUpdates(ctx context.Context, updateCh chan<- 
 						}
 						continue
 					}
-					log.Printf("Ошибка чтения сообщения: %v", err)
+					log.Printf("Ошибка чтения сообщения: msg %v err %v", msg, err)
 					select {
 					case c.reconnectCh <- struct{}{}:
 						// Сигнал отправлен
