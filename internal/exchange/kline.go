@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -63,7 +62,7 @@ func (c *MEXCClient) GetKlines(ctx context.Context, symbol, interval string, lim
 
 		closeTime, err := toInt64(row[6])
 		if err != nil || closeTime > now {
-			log.Printf("kline #%d: not finished, continue: %d", i, closeTime)
+			//log.Printf("kline #%d: not finished, continue: %d", i, closeTime)
 			continue // свеча ещё не завершена
 		}
 
@@ -110,7 +109,6 @@ func (c *MEXCClient) GetKlines(ctx context.Context, symbol, interval string, lim
 	return klines, nil
 }
 
-
 func parseStringFloat(v any) (float64, error) {
 	s, ok := v.(string)
 	if !ok {
@@ -127,4 +125,3 @@ func toInt64(v any) (int64, error) {
 		return 0, fmt.Errorf("expected number, got %T", v)
 	}
 }
-
