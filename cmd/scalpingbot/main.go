@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"scalpingbot/internal/buffer"
+	"scalpingbot/internal/listener"
 	"scalpingbot/internal/logger"
 	"scalpingbot/internal/tgbot"
 	"syscall"
@@ -66,6 +67,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("Ошибка запуска sellWorker: %v", err)
 	}
+
+	log.Println("Запуск подписки на обновления ордеров...")
+	updateCh := make(chan exchange.OrderUpdate, 100)
+	err = ex.SubscribeOrderUpdates(ctx, updateCh)
+	if err != nil {
+		log.Fatalf("Ошибка подписки на обновления ордеров.: %v", err)
+	}
+
+	log.Println("Запуск лиснера ордеров...")
+	orderListener := listener.NewOrderListener(cfg, ex, updateCh, logLoger, repo.NewSafeSet())
+	orderListener.Start(ctx)
 
 	// Настраиваем graceful shutdown
 	sigChan := make(chan os.Signal, 1)
