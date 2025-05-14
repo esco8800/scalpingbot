@@ -12,15 +12,12 @@ import (
 	"time"
 )
 
-// OrderStatus представляет статус ордера.
-type OrderStatus int32
-
 const (
-	NotTraded         OrderStatus = 1 // Не исполнен
-	FullyTraded       OrderStatus = 2 // Полностью исполнен
-	PartiallyTraded   OrderStatus = 3 // Частично исполнен
-	Canceled          OrderStatus = 4 // Отменён
-	PartiallyCanceled OrderStatus = 5 // Частично отменён
+	NotTraded         = 1 // Не исполнен
+	FullyTraded       = 2 // Полностью исполнен
+	PartiallyTraded   = 3 // Частично исполнен
+	Canceled          = 4 // Отменён
+	PartiallyCanceled = 5 // Частично отменён
 )
 
 type subscribeMsg struct {
@@ -157,7 +154,7 @@ func (c *MEXCClient) SubscribeOrderUpdates(ctx context.Context, updateCh chan<- 
 						Price:           wsMessage.GetPrivateOrders().GetPrice(),
 						CreateTimestamp: wsMessage.GetPrivateOrders().GetCreateTime(),
 						Status:          wsMessage.GetPrivateOrders().GetStatus(),
-						Quantity:        wsMessage.GetPrivateOrders().GetCumulativeAmount(),
+						Quantity:        wsMessage.GetPrivateOrders().GetCumulativeQuantity(),
 					}
 					select {
 					case updateCh <- update:

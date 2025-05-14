@@ -57,7 +57,7 @@ func (l *OrderListener) Start(ctx context.Context) {
 
 // processUpdate - обработка одного обновления
 func (l *OrderListener) processUpdate(ctx context.Context, update exchange.OrderUpdate) {
-	if l.storage.Has(update.OrderId) && update.Status == int32(exchange.FullyTraded) {
+	if l.storage.Has(update.OrderId) && update.Status == exchange.FullyTraded {
 		// Логирование ордера
 		l.logger.Info(fmt.Sprintf("New order full update: OrderId=%s, Price=%s, Quantity=%s Status=%d",
 			update.OrderId, update.Price, update.Quantity, update.Status))

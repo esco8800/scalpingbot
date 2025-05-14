@@ -76,7 +76,7 @@ func main() {
 	}
 
 	log.Println("Запуск лиснера ордеров...")
-	orderListener := listener.NewOrderListener(cfg, ex, updateCh, logLoger, repo.NewSafeSet())
+	orderListener := listener.NewOrderListener(cfg, ex, updateCh, logLoger, storage)
 	orderListener.Start(ctx)
 
 	// Настраиваем graceful shutdown
