@@ -1,5 +1,6 @@
 profit_percent: 0.2   # Процент прибыли
 order_size: 20.0      # Размер ордера (не в USDT). Подбирать, чтобы можно было поставить ~400 ордеров на ваш деп
+base_buy_timeout: 150 # Время ожидания покупки
 api_key: "your_mexc_api_key"
 secret_key: "your_mexc_secret_key"
 symbol: "KASUSDT" # Торгуем Kaspa против USDT
