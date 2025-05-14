@@ -137,9 +137,9 @@ func (c *MEXCClient) SubscribeOrderUpdates(ctx context.Context, updateCh chan<- 
 					c.reconnectMsg()
 					continue
 				}
-				if msgType == websocket.TextMessage {
-					log.Printf("message received: %v msgType: %d", string(msg), msgType)
-				}
+				//if msgType == websocket.TextMessage {
+				//	log.Printf("message received: %v msgType: %d", string(msg), msgType)
+				//}
 
 				// Десериализация Protobuf
 				if msgType == websocket.BinaryMessage {
@@ -149,7 +149,7 @@ func (c *MEXCClient) SubscribeOrderUpdates(ctx context.Context, updateCh chan<- 
 						log.Printf("Protobuf unmarshal error: %v", err)
 						continue
 					}
-					log.Printf("Message received: %v msgType: %d", string(msg), msgType)
+					//log.Printf("Message received: %v msgType: %d", string(msg), msgType)
 
 					// Обработка обновлений ордеров
 					update := OrderUpdate{
@@ -196,7 +196,7 @@ func (c *MEXCClient) ping(ctx context.Context) {
 						log.Printf("Ping failed: %v", err)
 						c.reconnectMsg()
 					}
-					log.Printf("Отправлен пинг на вебсокет ордеров соединение")
+					//log.Printf("Отправлен пинг на вебсокет ордеров соединение")
 				}
 				c.connMu.RUnlock()
 			case <-ctx.Done():
@@ -253,7 +253,7 @@ func (c *MEXCClient) ConnectToWebsocket(ctx context.Context) error {
 		conn.Close()
 		return fmt.Errorf("failed to read subscription response: %w", err)
 	}
-	log.Printf("Subscription response: %v", response)
+	//log.Printf("Subscription response: %v", response)
 	if code, ok := response["code"].(float64); ok && (code != 0 || response["msg"] != paramString) {
 		log.Printf("subscription failed: %v", response["msg"])
 		conn.Close()

@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"log"
 	"math"
 
 	"scalpingbot/internal/exchange"
@@ -24,13 +23,13 @@ loop:
 				break loop
 			}
 			redCount++
-			log.Printf("kline #%d: close < open, redCount: %d", i, redCount)
+			//log.Printf("kline #%d: close < open, redCount: %d", i, redCount)
 		case k.Close > k.Open:
 			if redCount > 0 {
 				break loop
 			}
 			greenCount++
-			log.Printf("kline #%d: close > open, greenCount: %d", i, greenCount)
+			//log.Printf("kline #%d: close > open, greenCount: %d", i, greenCount)
 		default:
 			// если красных больше, то увеличиваем красный счетчик
 			if redCount > greenCount {
@@ -42,7 +41,7 @@ loop:
 				greenCount++
 				continue loop
 			}
-			log.Printf("kline #%d: close == open, break loop", i)
+			//log.Printf("kline #%d: close == open, break loop", i)
 			break loop
 		}
 	}
