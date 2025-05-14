@@ -48,11 +48,13 @@ loop:
 	}
 
 	// начиная с 2 свеч редактируем таймаут
+	// если красных больше 1, то уменьшаем таймаут, если зеленые, то возвращаем базовый таймаут
 	if redCount > 1 {
-		return int(math.Round(float64(baseTimeout) + float64(baseTimeout*redCount)))
+		return int(math.Round(float64(baseTimeout) / float64(greenCount)))
 	}
 	if greenCount > 1 {
-		return int(math.Round(float64(baseTimeout) / float64(greenCount)))
+		//return int(math.Round(float64(baseTimeout) + float64(baseTimeout*redCount)))
+		return baseTimeout
 	}
 
 	return baseTimeout
