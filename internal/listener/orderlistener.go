@@ -48,22 +48,8 @@ func (l *OrderListener) Start(ctx context.Context) {
 // processUpdate - обработка одного обновления
 func (l *OrderListener) processUpdate(update exchange.OrderUpdate) {
 	// Логирование в зависимости от статуса
-	switch update.Status {
-	case "NEW":
-		l.logger.Info(fmt.Sprintf("New order: Symbol=%s, OrderId=%s, Price=%s, Quantity=%s",
-			update.Symbol, update.OrderId, update.Price, update.Quantity))
-	case "FILLED":
-		l.logger.Info(fmt.Sprintf("Order filled: Symbol=%s, OrderId=%s, Price=%s, Quantity=%s",
-			update.Symbol, update.OrderId, update.Price, update.Quantity))
-	case "CANCELED":
-		l.logger.Info(fmt.Sprintf("Order canceled: Symbol=%s, OrderId=%s", update.Symbol, update.OrderId))
-	case "PARTIALLY_FILLED":
-		l.logger.Info(fmt.Sprintf("Order partially filled: Symbol=%s, OrderId=%s, Price=%s, Quantity=%s",
-			update.Symbol, update.OrderId, update.Price, update.Quantity))
-	default:
-		l.logger.Info(fmt.Sprintf("Unknown order status: Symbol=%s, OrderId=%s, Status=%s",
-			update.Symbol, update.OrderId, update.Status))
-	}
+	l.logger.Info(fmt.Sprintf("New order update: Symbol=%s, OrderId=%s, Price=%s, Quantity=%s",
+		update.Symbol, update.OrderId, update.Price, update.Quantity))
 }
 
 // Wait - ожидание завершения работы листенера

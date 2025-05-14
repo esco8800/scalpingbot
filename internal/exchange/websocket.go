@@ -5,23 +5,45 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
+	"google.golang.org/protobuf/proto"
 	"io"
 	"log"
 	"net/http"
 	"time"
 )
 
+// OrderStatus представляет статус ордера.
+type OrderStatus int32
+
+const (
+	NotTraded         OrderStatus = 1 // Не исполнен
+	FullyTraded       OrderStatus = 2 // Полностью исполнен
+	PartiallyTraded   OrderStatus = 3 // Частично исполнен
+	Canceled          OrderStatus = 4 // Отменён
+	PartiallyCanceled OrderStatus = 5 // Частично отменён
+)
+
+type subscribeMsg struct {
+	Method string   `json:"method"`
+	Params []string `json:"params"`
+}
+
+// OrderUpdate - структура для обновлений ордеров
+type OrderUpdate struct {
+	OrderId string
+	Price   string
+	Status  int32
+	Symbol  string
+	//Общее количество (base asset), которое уже исполнено в рамках данного ордера.
+	//В KAS для пары KAS/USDT.
+	Quantity        string
+	CreateTimestamp int64
+}
+
 // Таймеры для периодического обновления соединения и пинга
 const reconnectInterval = 15 * time.Minute
 const pingInterval = 15 * time.Second
 const maxReconnectAttempts = 5
-
-// OrderUpdate - структура для обновлений ордеров
-type OrderUpdate struct {
-	OrderId   string  `json:"i"`
-	Price     float64 `json:"p"`
-	Timestamp int64   `json:"T"`
-}
 
 // SubscribeOrderUpdates - подписка на обновления ордеров через WebSocket
 func (c *MEXCClient) SubscribeOrderUpdates(ctx context.Context, updateCh chan<- OrderUpdate) error {
@@ -96,35 +118,46 @@ func (c *MEXCClient) SubscribeOrderUpdates(ctx context.Context, updateCh chan<- 
 					continue
 				}
 
-				var msg map[string]interface{}
+				// чтение сообщения
 				c.conn.SetReadDeadline(time.Now().Add(time.Minute))
-				err := c.conn.ReadJSON(&msg)
+				msgType, msg, err := c.conn.ReadMessage()
 				c.connMu.RUnlock()
-
 				if err != nil {
 					if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 						log.Printf("Читаем из закрытого соедининия: %v", err)
 						c.reconnectMsg()
 						continue
 					}
-					log.Printf("Ошибка чтения сообщения: msg %v err %v", msg, err)
+					log.Printf("Ошибка чтения сообщения: msg %v msgType: %d err %v", string(msg), msgType, err)
 					c.reconnectMsg()
 					continue
 				}
-				log.Printf("message received: %v", msg)
+				if msgType == websocket.TextMessage {
+					log.Printf("message received: %v msgType: %d", string(msg), msgType)
+				}
 
-				// Обработка обновлений ордеров
-				if data, ok := msg["d"].(map[string]interface{}); ok {
-					var update OrderUpdate
-					dataBytes, _ := json.Marshal(data)
-					if err := json.Unmarshal(dataBytes, &update); err == nil {
-						select {
-						case updateCh <- update:
-						case <-ctx.Done():
-							return
-						}
-					} else {
-						log.Printf("Ошибка декодирования обновления ордера: %v", err)
+				// Десериализация Protobuf
+				if msgType == websocket.BinaryMessage {
+					var wsMessage PrivateOrdersV3Api
+					if err := proto.Unmarshal(msg, &wsMessage); err != nil {
+						log.Printf("Protobuf unmarshal error: %v", err)
+						continue
+					}
+					log.Printf("message received: %v msgType: %d", wsMessage, msgType)
+
+					// Обработка обновлений ордеров
+					update := OrderUpdate{
+						OrderId:         wsMessage.GetId(),
+						Price:           wsMessage.GetPrice(),
+						CreateTimestamp: wsMessage.GetCreateTime(),
+						Status:          wsMessage.GetStatus(),
+						Symbol:          wsMessage.GetSymbolId(),
+						Quantity:        wsMessage.GetCumulativeAmount(),
+					}
+					select {
+					case updateCh <- update:
+					case <-ctx.Done():
+						return
 					}
 				}
 			}
@@ -190,13 +223,19 @@ func (c *MEXCClient) ConnectToWebsocket(ctx context.Context) error {
 	conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 
-	paramString := "spot@private.orders.v3.api"
+	paramString := "spot@private.orders.v3.api.pb"
 	// Подписываемся на обновления ордеров
-	subscribeMsg := map[string]interface{}{
-		"method": "SUBSCRIPTION",
-		"params": []string{paramString},
+	msg := subscribeMsg{
+		Method: "SUBSCRIPTION",
+		Params: []string{paramString},
 	}
-	if err := conn.WriteJSON(subscribeMsg); err != nil {
+	msgData, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("failed to json Marshal msgData: %v", err)
+		conn.Close()
+		return fmt.Errorf("failed to json Marshal msgData: %w", err)
+	}
+	if err := conn.WriteMessage(websocket.TextMessage, msgData); err != nil {
 		conn.Close()
 		return fmt.Errorf("failed to subscribe: %w", err)
 	}

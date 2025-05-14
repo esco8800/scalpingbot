@@ -47,7 +47,7 @@ func NewMEXCClient(apiKey, secretKey, symbol string, logLogger logger.Logger) *M
 		secretKey:   secretKey,
 		symbol:      symbol,
 		baseURL:     "https://api.mexc.com",
-		wsURL:       "wss://wbs.mexc.com/ws?listenKey=%s",
+		wsURL:       "wss://wbs-api.mexc.com/ws?listenKey=%s",
 		reconnectCh: make(chan struct{}, 1),
 		logLogger:   logLogger,
 	}
