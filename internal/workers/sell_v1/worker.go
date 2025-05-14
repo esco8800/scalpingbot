@@ -41,7 +41,7 @@ func (b *Bot) Process(ctx context.Context) error {
 	for _, order := range allOrders {
 		orderAge := time.Now().Sub(time.UnixMilli(order.Time))
 		// Если ордер уже закрыт, то открываем продажу
-		if b.storage.Has(order.OrderID) && order.Status == exchange.Filled && orderAge > 1*time.Minute {
+		if b.storage.Has(order.OrderID) && order.Status == exchange.Filled && orderAge > 15*time.Second {
 			newPrice, err := strconv.ParseFloat(order.Price, 64)
 			if err != nil {
 				return err
