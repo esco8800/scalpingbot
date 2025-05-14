@@ -62,7 +62,7 @@ func main() {
 		log.Fatalf("Ошибка запуска buyWorker: %v", err)
 	}
 	sellWorker := sell_v1.NewBot(cfg, ex, storage)
-	err = worker.Start(ctx, sellWorker, time.Second*5, logLoger)
+	err = worker.Start(ctx, sellWorker, time.Minute, logLoger)
 	if err != nil {
 		log.Fatalf("Ошибка запуска sellWorker: %v", err)
 	}

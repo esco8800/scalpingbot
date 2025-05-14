@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"scalpingbot/internal/listener"
 	"scalpingbot/internal/logger"
+	"scalpingbot/internal/repo"
 	"syscall"
 
 	"scalpingbot/internal/config"
@@ -37,7 +38,7 @@ func main() {
 	}
 
 	log.Println("Запуск лиснера ордеров...")
-	orderListener := listener.NewOrderListener(updateCh, logLoger)
+	orderListener := listener.NewOrderListener(cfg, ex, updateCh, logLoger, repo.NewSafeSet())
 	orderListener.Start(ctx)
 
 	// Настраиваем graceful shutdown

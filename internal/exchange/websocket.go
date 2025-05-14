@@ -33,7 +33,6 @@ type OrderUpdate struct {
 	OrderId string
 	Price   string
 	Status  int32
-	Symbol  string
 	//Общее количество (base asset), которое уже исполнено в рамках данного ордера.
 	//В KAS для пары KAS/USDT.
 	Quantity        string
@@ -67,6 +66,8 @@ func (c *MEXCClient) SubscribeOrderUpdates(ctx context.Context, updateCh chan<- 
 		for attempt := 0; attempt < maxReconnectAttempts; attempt++ {
 			if err := c.ConnectToWebsocket(ctx); err == nil {
 				break
+			} else {
+				c.logger.Error(fmt.Sprintf("Ошибка подключения к вебсокету: %v попытка: %d", err, attempt))
 			}
 			select {
 			case <-ctx.Done():
@@ -94,6 +95,8 @@ func (c *MEXCClient) SubscribeOrderUpdates(ctx context.Context, updateCh chan<- 
 					if err := c.ConnectToWebsocket(ctx); err == nil {
 						log.Printf("Реконнект к вебсокету успешно")
 						break
+					} else {
+						c.logger.Error(fmt.Sprintf("Ошибка подключения к вебсокету: %v попытка: %d", err, attempt))
 					}
 					select {
 					case <-ctx.Done():
@@ -124,10 +127,12 @@ func (c *MEXCClient) SubscribeOrderUpdates(ctx context.Context, updateCh chan<- 
 				c.connMu.RUnlock()
 				if err != nil {
 					if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+						c.logger.Error(fmt.Sprintf("Чтение из закрытого соединения: %v", err))
 						log.Printf("Читаем из закрытого соедининия: %v", err)
 						c.reconnectMsg()
 						continue
 					}
+					c.logger.Error(fmt.Sprintf("Ошибка чтения сообщения: msg %v msgType: %d err %v", string(msg), msgType, err))
 					log.Printf("Ошибка чтения сообщения: msg %v msgType: %d err %v", string(msg), msgType, err)
 					c.reconnectMsg()
 					continue
@@ -140,19 +145,19 @@ func (c *MEXCClient) SubscribeOrderUpdates(ctx context.Context, updateCh chan<- 
 				if msgType == websocket.BinaryMessage {
 					var wsMessage PrivateOrdersV3Api
 					if err := proto.Unmarshal(msg, &wsMessage); err != nil {
+						c.logger.Error(fmt.Sprintf("Protobuf unmarshal error: %v", err))
 						log.Printf("Protobuf unmarshal error: %v", err)
 						continue
 					}
-					log.Printf("message received: %v msgType: %d", wsMessage, msgType)
+					log.Printf("Message received: %v msgType: %d", string(msg), msgType)
 
 					// Обработка обновлений ордеров
 					update := OrderUpdate{
-						OrderId:         wsMessage.GetId(),
-						Price:           wsMessage.GetPrice(),
-						CreateTimestamp: wsMessage.GetCreateTime(),
-						Status:          wsMessage.GetStatus(),
-						Symbol:          wsMessage.GetSymbolId(),
-						Quantity:        wsMessage.GetCumulativeAmount(),
+						OrderId:         wsMessage.GetPrivateOrders().GetId(),
+						Price:           wsMessage.GetPrivateOrders().GetPrice(),
+						CreateTimestamp: wsMessage.GetPrivateOrders().GetCreateTime(),
+						Status:          wsMessage.GetPrivateOrders().GetStatus(),
+						Quantity:        wsMessage.GetPrivateOrders().GetCumulativeAmount(),
 					}
 					select {
 					case updateCh <- update:
@@ -187,6 +192,7 @@ func (c *MEXCClient) ping(ctx context.Context) {
 				if c.conn != nil {
 					c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 					if err := c.conn.WriteJSON(map[string]interface{}{"method": "PING"}); err != nil {
+						c.logger.Error(fmt.Sprintf("Ping error: %v", err))
 						log.Printf("Ping failed: %v", err)
 						c.reconnectMsg()
 					}

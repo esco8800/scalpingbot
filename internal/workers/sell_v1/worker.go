@@ -39,8 +39,9 @@ func (b *Bot) Process(ctx context.Context) error {
 	log.Printf("Открытых ордеров на продажу: %d", sellCount)
 
 	for _, order := range allOrders {
+		orderAge := time.Now().Sub(time.UnixMilli(order.Time))
 		// Если ордер уже закрыт, то открываем продажу
-		if b.storage.Has(order.OrderID) && order.Status == exchange.Filled {
+		if b.storage.Has(order.OrderID) && order.Status == exchange.Filled && orderAge > 1*time.Minute {
 			newPrice, err := strconv.ParseFloat(order.Price, 64)
 			if err != nil {
 				return err
@@ -61,14 +62,13 @@ func (b *Bot) Process(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			log.Printf("Ордер на продажу размещен: %s", orderResp.OrderID)
+			log.Printf("Ордер на продажу из воркера размещен: %s", orderResp.OrderID)
 			// Удаляем ордер из стораджа
 			b.storage.Remove(order.OrderID)
 		}
 
 		// Отмена старых незаполненных ордеров
 		if b.storage.Has(order.OrderID) && (order.Status == exchange.New) {
-			orderAge := time.Now().Sub(time.UnixMilli(order.Time))
 			if orderAge > 10*time.Minute {
 				err := b.exchange.CancelOrder(ctx, b.config.Symbol, order.OrderID)
 				if err != nil {
@@ -83,7 +83,6 @@ func (b *Bot) Process(ctx context.Context) error {
 
 		// Отмена старых частично заполненных ордеров
 		if b.storage.Has(order.OrderID) && order.Status == exchange.PartiallyFilled {
-			orderAge := time.Now().Sub(time.UnixMilli(order.Time))
 			if orderAge > 10*time.Minute {
 				// сначала отменяем старый ордер
 				err := b.exchange.CancelOrder(ctx, b.config.Symbol, order.OrderID)

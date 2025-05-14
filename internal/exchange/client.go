@@ -34,7 +34,7 @@ type MEXCClient struct {
 	conn        *websocket.Conn
 	connMu      sync.RWMutex
 	reconnectCh chan struct{}
-	logLogger   logger.Logger
+	logger      logger.Logger
 }
 
 // NewMEXCClient - конструктор клиента
@@ -49,7 +49,7 @@ func NewMEXCClient(apiKey, secretKey, symbol string, logLogger logger.Logger) *M
 		baseURL:     "https://api.mexc.com",
 		wsURL:       "wss://wbs-api.mexc.com/ws?listenKey=%s",
 		reconnectCh: make(chan struct{}, 1),
-		logLogger:   logLogger,
+		logger:      logLogger,
 	}
 }
 
