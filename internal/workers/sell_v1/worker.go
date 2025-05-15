@@ -38,6 +38,15 @@ func (b *Bot) Process(ctx context.Context) error {
 	log.Printf("Открытых ордеров на покупку: %d", buyCount)
 	log.Printf("Открытых ордеров на продажу: %d", sellCount)
 
+	accountInfo, err := b.exchange.GetAccountInfo(ctx)
+	if err != nil {
+		return err
+	}
+	kasFreeBalance, err := accountInfo.GetKasBalance()
+	if err != nil {
+		return err
+	}
+
 	for _, order := range allOrders {
 		orderAge := time.Now().Sub(time.UnixMilli(order.Time))
 		updateTime := time.Now().Sub(time.UnixMilli(order.UpdateTime))
@@ -59,6 +68,13 @@ func (b *Bot) Process(ctx context.Context) error {
 				Quantity: qty,
 				Price:    newPrice,
 			}
+
+			// Проверяем, что есть достаточно KAS
+			if kasFreeBalance < qty {
+				log.Printf("Недостаточно KAS для продажи, пропускаем ордер: %s (статус: %s, возраст: %s)", order.OrderID, order.Status, orderAge)
+				continue
+			}
+
 			orderResp, err := b.exchange.PlaceOrder(ctx, sellOrder)
 			if err != nil {
 				log.Printf("Ошибка размещения ордера на продажу из воркера: %v", err)
@@ -95,8 +111,14 @@ func (b *Bot) Process(ctx context.Context) error {
 				if err != nil {
 					return err
 				}
+
+				// Проверяем, что сумма больше минимальной и есть достаточно KAS
 				if qty*newPrice < 1 {
 					log.Printf("Сумма меньше минимальной, ордер не отменён: %s (статус: %s, возраст: %s)", order.OrderID, order.Status, orderAge)
+					continue
+				}
+				if kasFreeBalance < qty {
+					log.Printf("Недостаточно KAS для продажи, пропускаем ордер: %s (статус: %s, возраст: %s)", order.OrderID, order.Status, orderAge)
 					continue
 				}
 
