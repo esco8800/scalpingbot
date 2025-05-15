@@ -61,6 +61,7 @@ func (b *Bot) Process(ctx context.Context) error {
 			}
 			orderResp, err := b.exchange.PlaceOrder(ctx, sellOrder)
 			if err != nil {
+				log.Printf("Ошибка размещения ордера на продажу из воркера: %v", err)
 				return err
 			}
 			log.Printf("Ордер на продажу из воркера размещен: %s", orderResp.OrderID)
