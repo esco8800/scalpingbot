@@ -27,7 +27,7 @@ const (
 // OrderInfo — структура одного ордера
 type OrderInfo struct {
 	Symbol      string `json:"symbol"`
-	OrderID     string  `json:"orderId"`
+	OrderID     string `json:"orderId"`
 	Price       string `json:"price"`
 	OrigQty     string `json:"origQty"`
 	ExecutedQty string `json:"executedQty"`
@@ -72,6 +72,9 @@ func (c *MEXCClient) GetAllOrders(ctx context.Context, symbol string) ([]OrderIn
 	if err := json.Unmarshal(body, &orders); err != nil {
 		return nil, fmt.Errorf("не удалось декодировать ответ: %w, тело: %s", err, string(body))
 	}
+
+	// спим 0.2 сек
+	time.Sleep(200 * time.Millisecond)
 
 	return orders, nil
 }

@@ -79,6 +79,9 @@ func (c *MEXCClient) GetAccountInfo(ctx context.Context) (*AccountInfo, error) {
 		return nil, fmt.Errorf("не удалось декодировать ответ GetAccountInfo: %w, тело: %s", err, string(body))
 	}
 
+	// спим 0.2 сек
+	time.Sleep(200 * time.Millisecond)
+
 	return &accountInfo, nil
 }
 
