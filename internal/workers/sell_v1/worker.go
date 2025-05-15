@@ -40,32 +40,33 @@ func (b *Bot) Process(ctx context.Context) error {
 
 	for _, order := range allOrders {
 		orderAge := time.Now().Sub(time.UnixMilli(order.Time))
-		// Если ордер уже закрыт, то открываем продажу (пока комент тк вебсокет лиснер процесит продажи)
-		//if b.storage.Has(order.OrderID) && order.Status == exchange.Filled && orderAge > 15*time.Second {
-		//	newPrice, err := strconv.ParseFloat(order.Price, 64)
-		//	if err != nil {
-		//		return err
-		//	}
-		//	newPrice = newPrice * (1 + b.config.ProfitPercent/100)
-		//	qty, err := strconv.ParseFloat(order.ExecutedQty, 64)
-		//	if err != nil {
-		//		return err
-		//	}
-		//	sellOrder := exchange.SpotOrderRequest{
-		//		Symbol:   b.config.Symbol,
-		//		Side:     exchange.Sell,
-		//		Type:     exchange.Limit,
-		//		Quantity: qty,
-		//		Price:    newPrice,
-		//	}
-		//	orderResp, err := b.exchange.PlaceOrder(ctx, sellOrder)
-		//	if err != nil {
-		//		return err
-		//	}
-		//	log.Printf("Ордер на продажу из воркера размещен: %s", orderResp.OrderID)
-		//	// Удаляем ордер из стораджа
-		//	b.storage.Remove(order.OrderID)
-		//}
+		updateTime := time.Now().Sub(time.UnixMilli(order.UpdateTime))
+		// Процесим ордера, которые незапроцессились лиснером
+		if b.storage.Has(order.OrderID) && order.Status == exchange.Filled && updateTime > 15*time.Second {
+			newPrice, err := strconv.ParseFloat(order.Price, 64)
+			if err != nil {
+				return err
+			}
+			newPrice = newPrice * (1 + b.config.ProfitPercent/100)
+			qty, err := strconv.ParseFloat(order.ExecutedQty, 64)
+			if err != nil {
+				return err
+			}
+			sellOrder := exchange.SpotOrderRequest{
+				Symbol:   b.config.Symbol,
+				Side:     exchange.Sell,
+				Type:     exchange.Limit,
+				Quantity: qty,
+				Price:    newPrice,
+			}
+			orderResp, err := b.exchange.PlaceOrder(ctx, sellOrder)
+			if err != nil {
+				return err
+			}
+			log.Printf("Ордер на продажу из воркера размещен: %s", orderResp.OrderID)
+			// Удаляем ордер из стораджа
+			b.storage.Remove(order.OrderID)
+		}
 
 		// Отмена старых незаполненных ордеров
 		if b.storage.Has(order.OrderID) && (order.Status == exchange.New) {
