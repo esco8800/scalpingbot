@@ -132,6 +132,10 @@ func (c *MEXCClient) PlaceOrder(ctx context.Context, req SpotOrderRequest) (*Ord
 	if err := json.Unmarshal(body, &orderResp); err != nil {
 		return nil, fmt.Errorf("не удалось декодировать ответ PlaceOrder: %w, тело: %s", err, string(body))
 	}
+
+	// спим 0.2 сек (чтобы не было ошибки апи too many requests)
+	time.Sleep(200 * time.Millisecond)
+
 	return &orderResp, nil
 }
 
@@ -162,6 +166,9 @@ func (c *MEXCClient) CancelOrder(ctx context.Context, symbol, orderID string) er
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("ошибка API отмены ордера: %s, тело: %s", resp.Status, string(body))
 	}
+
+	// спим 0.2 сек (чтобы не было ошибки апи too many requests)
+	time.Sleep(200 * time.Millisecond)
 
 	return nil
 }

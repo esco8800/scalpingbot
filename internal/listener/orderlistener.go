@@ -10,7 +10,6 @@ import (
 	"scalpingbot/internal/repo"
 	"strconv"
 	"sync"
-	"time"
 )
 
 // OrderListener - компонент для обработки обновлений ордеров
@@ -51,8 +50,6 @@ func (l *OrderListener) Start(ctx context.Context) {
 					return
 				}
 				l.processUpdate(ctx, update)
-				// спим 0.2 сек (чтобы не было ошибки апи too many requests)
-				time.Sleep(200 * time.Millisecond)
 			}
 		}
 	}()
