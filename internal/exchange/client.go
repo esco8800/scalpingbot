@@ -41,7 +41,7 @@ type MEXCClient struct {
 func NewMEXCClient(apiKey, secretKey, symbol string, logLogger logger.Logger) *MEXCClient {
 	return &MEXCClient{
 		client: &http.Client{
-			Timeout: 2 * time.Second,
+			Timeout: 3 * time.Second,
 		},
 		apiKey:      apiKey,
 		secretKey:   secretKey,
