@@ -42,8 +42,14 @@ type OrderInfo struct {
 func (c *MEXCClient) GetAllOrders(ctx context.Context, symbol string) ([]OrderInfo, error) {
 	timestamp := strconv.FormatInt(time.Now().UnixMilli(), 10)
 
+	now := time.Now()
+	endTime := now.UnixMilli()
+	startTime := now.Add(-30 * time.Minute).UnixMilli()
+
 	q := url.Values{}
 	q.Set("symbol", symbol)
+	q.Set("startTime", strconv.FormatInt(startTime, 10))
+	q.Set("endTime", strconv.FormatInt(endTime, 10))
 	q.Set("timestamp", timestamp)
 
 	signature := c.sign(q.Encode())
@@ -74,6 +80,46 @@ func (c *MEXCClient) GetAllOrders(ctx context.Context, symbol string) ([]OrderIn
 	}
 
 	// спим 0.2 сек
+	time.Sleep(200 * time.Millisecond)
+
+	return orders, nil
+}
+
+func (c *MEXCClient) GetOpenOrders(ctx context.Context, symbol string) ([]OrderInfo, error) {
+	timestamp := strconv.FormatInt(time.Now().UnixMilli(), 10)
+
+	q := url.Values{}
+	q.Set("symbol", symbol)
+	q.Set("timestamp", timestamp)
+
+	signature := c.sign(q.Encode())
+	q.Set("signature", signature)
+
+	url := fmt.Sprintf("%s/api/v3/openOrders?%s", c.baseURL, q.Encode())
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-MEXC-APIKEY", c.apiKey)
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ошибка API: %s, тело: %s", resp.Status, string(body))
+	}
+
+	var orders []OrderInfo
+	if err := json.Unmarshal(body, &orders); err != nil {
+		return nil, fmt.Errorf("не удалось декодировать ответ: %w, тело: %s", err, string(body))
+	}
+
+	// Задержка для предотвращения превышения лимитов API
 	time.Sleep(200 * time.Millisecond)
 
 	return orders, nil

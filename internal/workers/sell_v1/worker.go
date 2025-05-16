@@ -34,9 +34,19 @@ func (b *Bot) Process(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	buyCount, sellCount := getCountOrders(allOrders)
+	openOrders, err := b.exchange.GetOpenOrders(ctx, b.config.Symbol)
+	if err != nil {
+		return err
+	}
+	buyCount, sellCount := GetCountOpenOrders(openOrders)
 	log.Printf("Открытых ордеров на покупку: %d", buyCount)
 	log.Printf("Открытых ордеров на продажу: %d", sellCount)
+
+	// Проверяем, что не превышено количество открытых ордеров
+	if buyCount+sellCount >= exchange.MaxOpenOrders {
+		log.Printf("Превышено количество открытых ордеров: %d", buyCount+sellCount)
+		return nil
+	}
 
 	accountInfo, err := b.exchange.GetAccountInfo(ctx)
 	if err != nil {
@@ -150,20 +160,20 @@ func (b *Bot) Process(ctx context.Context) error {
 	return nil
 }
 
-func getCountOrders(allOrders []exchange.OrderInfo) (int, int) {
+func GetCountOpenOrders(orders []exchange.OrderInfo) (int, int) {
 	buyCount := 0
 	sellCount := 0
 
-	for _, order := range allOrders {
-		if order.Status == exchange.New || order.Status == exchange.PartiallyFilled {
-			switch order.Side {
-			case exchange.Buy:
-				buyCount++
-			case exchange.Sell:
-				sellCount++
-			}
+	// Считаем количество BUY и SELL ордеров
+	for _, order := range orders {
+		switch order.Side {
+		case "BUY":
+			buyCount++
+		case "SELL":
+			sellCount++
 		}
 	}
+
 	return buyCount, sellCount
 }
 

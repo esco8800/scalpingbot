@@ -8,6 +8,7 @@ import (
 	"scalpingbot/internal/repo"
 	"scalpingbot/internal/tgbot"
 	"scalpingbot/internal/tools"
+	"scalpingbot/internal/workers/sell_v1"
 	"time"
 )
 
@@ -41,6 +42,18 @@ func (b *Bot) Process(ctx context.Context) error {
 	err := b.SleepTimeout(ctx)
 	if err != nil {
 		return err
+	}
+
+	openOrders, err := b.exchange.GetOpenOrders(ctx, b.config.Symbol)
+	if err != nil {
+		return err
+	}
+	buyCount, sellCount := sell_v1.GetCountOpenOrders(openOrders)
+
+	// Проверяем, что не превышено количество открытых ордеров
+	if buyCount+sellCount >= exchange.MaxOpenOrders {
+		log.Printf("Превышено количество открытых ордеров: %d", buyCount+sellCount)
+		return nil
 	}
 
 	accountInfo, err := b.exchange.GetAccountInfo(ctx)
