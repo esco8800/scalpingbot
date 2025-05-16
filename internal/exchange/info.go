@@ -31,7 +31,7 @@ func (a *AccountInfo) GetUsdtBalance() (float64, error) {
 			return free, err
 		}
 	}
-	return 0, fmt.Errorf("баланс USDT не найден")
+	return 0, nil
 }
 
 // GetKasBalance возвращает свободный баланс KAS
@@ -42,7 +42,7 @@ func (a *AccountInfo) GetKasBalance() (float64, error) {
 			return free, err
 		}
 	}
-	return 0, fmt.Errorf("баланс KAS не найден")
+	return 0, nil
 }
 
 // GetAccountInfo — получает информацию о всех балансах аккаунта
