@@ -88,7 +88,7 @@ func (l *OrderListener) processUpdate(ctx context.Context, update exchange.Order
 			l.logger.Error(fmt.Sprintf("Error placing sell order: %v", err))
 			return
 		}
-		log.Printf("Ордер в лиснере на продажу размещен: %s oldPrice=%s newPrice=%d", orderResp.OrderID, update.Price, orderResp.Price)
+		log.Printf("Ордер в лиснере на продажу размещен: %s oldPrice=%s newPrice=%s", orderResp.OrderID, update.Price, orderResp.Price)
 		// Удаляем старый бай ордер из стораджа
 		l.storage.Remove(update.OrderId)
 	}
