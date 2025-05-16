@@ -84,7 +84,7 @@ func (b *Bot) Process(ctx context.Context) error {
 			return err
 		}
 		b.storage.Add(orderResp.OrderID)
-		log.Printf("Ордер на покупку размещен: %s", orderResp.OrderID)
+		log.Printf("Ордер на покупку размещен: %s Price=%s", orderResp.OrderID, orderResp.Price)
 	} else {
 		log.Printf("Баланс usdt меньше заданного размера ордера, ожидание...")
 		time.Sleep(time.Second * 15)
