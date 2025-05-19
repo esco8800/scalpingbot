@@ -9,7 +9,13 @@ import (
 	"log"
 	"net/http"
 	"scalpingbot/internal/buffer"
+	"scalpingbot/internal/config"
+	"scalpingbot/internal/exchange"
 	"scalpingbot/internal/repo"
+	"scalpingbot/internal/tools"
+	"scalpingbot/internal/workers/sell_v1"
+	"strings"
+	"time"
 )
 
 const (
@@ -18,6 +24,7 @@ const (
 	start_worker = "start_worker"
 	stop_worker  = "stop_worker"
 	logs         = "logs"
+	stats        = "stats"
 )
 
 type TelegramBot struct {
@@ -26,6 +33,8 @@ type TelegramBot struct {
 	chatID  int64
 	ringBuf buffer.Buffer
 	storage repo.Repo
+	ex      exchange.Exchange
+	cfg     config.Config
 }
 type BotCommand struct {
 	Command     string `json:"command"`
@@ -41,18 +50,20 @@ type TelegramUpdate struct {
 	} `json:"message"`
 }
 
-func NewTelegramBot(token string, chatID int64, ringBuf buffer.Buffer, storage repo.Repo) (*TelegramBot, error) {
-	bot, err := tgbotapi.NewBotAPI(token)
+func NewTelegramBot(cfg config.Config, ringBuf buffer.Buffer, storage repo.Repo, ex exchange.Exchange) (*TelegramBot, error) {
+	bot, err := tgbotapi.NewBotAPI(cfg.TgToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create bot: %w", err)
 	}
 
 	tgBot := &TelegramBot{
 		bot:     bot,
-		token:   token,
-		chatID:  chatID,
+		token:   cfg.TgToken,
+		chatID:  cfg.TgChatID,
 		ringBuf: ringBuf,
 		storage: storage,
+		ex:      ex,
+		cfg:     cfg,
 	}
 
 	// Регистрируем команды
@@ -94,13 +105,36 @@ func (tb *TelegramBot) handleCommand(msg *tgbotapi.Message) error {
 
 	switch msg.Command() {
 	case start_worker:
-		message = "Воркер запущен"
+		message = "Worker started"
 		tb.storage.Add(WorkerStatusKey)
 	case stop_worker:
-		message = "Воркер остановлен"
+		message = "Worker stopped"
 		tb.storage.Remove(WorkerStatusKey)
 	case logs:
-		message = "Последние сообщения:\n" + tb.ringBuf.GetMessages()
+		message = "Last messages:\n" + tb.ringBuf.GetMessages()
+	case stats:
+		openOrders, err := tb.ex.GetOpenOrders(context.Background(), tb.cfg.Symbol)
+		if err != nil {
+			return err
+		}
+		buyCount, sellCount := sell_v1.GetCountOpenOrders(openOrders)
+
+		now := time.Now()
+		endTime := now.UnixMilli()
+		// Получаем первый день текущего месяца
+		startTime := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).UnixMilli()
+
+		allOrders, err := tb.ex.GetAllOrders(context.Background(), tb.cfg.Symbol, startTime, endTime)
+		if err != nil {
+			return err
+		}
+
+		var builder strings.Builder
+		builder.WriteString(fmt.Sprintf("Count of open Buy Orders: %d \n", buyCount))
+		builder.WriteString(fmt.Sprintf("Count of open Sell Orders: %d \n", sellCount))
+		builder.WriteString(fmt.Sprintf("Total Profit this month: %.3f \n", tools.CalculateSellVolumeInUSDT(allOrders)))
+
+		message = builder.String()
 	default:
 		message = "Неизвестная команда"
 	}
@@ -123,6 +157,7 @@ func (tb *TelegramBot) registerCommands() error {
 		{Command: start_worker, Description: "Запустить воркер"},
 		{Command: stop_worker, Description: "Остановить воркер"},
 		{Command: logs, Description: "Получить последние логи"},
+		{Command: stats, Description: "Получить cтатистику работы"},
 	}
 
 	payload, err := json.Marshal(map[string][]BotCommand{"commands": commands})

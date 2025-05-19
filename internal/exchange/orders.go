@@ -39,12 +39,8 @@ type OrderInfo struct {
 }
 
 // GetAllOrders — получить все ордера по символу
-func (c *MEXCClient) GetAllOrders(ctx context.Context, symbol string) ([]OrderInfo, error) {
+func (c *MEXCClient) GetAllOrders(ctx context.Context, symbol string, startTime, endTime int64) ([]OrderInfo, error) {
 	timestamp := strconv.FormatInt(time.Now().UnixMilli(), 10)
-
-	now := time.Now()
-	endTime := now.UnixMilli()
-	startTime := now.Add(-30 * time.Minute).UnixMilli()
 
 	q := url.Values{}
 	q.Set("symbol", symbol)

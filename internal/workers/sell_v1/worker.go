@@ -30,7 +30,10 @@ func NewBot(cfg config.Config, ex exchange.Exchange, storage repo.Repo) *Bot {
 }
 
 func (b *Bot) Process(ctx context.Context) error {
-	allOrders, err := b.exchange.GetAllOrders(ctx, b.config.Symbol)
+	now := time.Now()
+	endTime := now.UnixMilli()
+	startTime := now.Add(-30 * time.Minute).UnixMilli()
+	allOrders, err := b.exchange.GetAllOrders(ctx, b.config.Symbol, startTime, endTime)
 	if err != nil {
 		return err
 	}

@@ -19,7 +19,7 @@ type Exchange interface {
 	GetPrice(ctx context.Context, symbol string) (float64, error)
 	GetAccountInfo(ctx context.Context) (*AccountInfo, error)
 	PlaceOrder(ctx context.Context, req SpotOrderRequest) (*OrderResponse, error)
-	GetAllOrders(ctx context.Context, symbol string) ([]OrderInfo, error)
+	GetAllOrders(ctx context.Context, symbol string, startTime, endTime int64) ([]OrderInfo, error)
 	GetOpenOrders(ctx context.Context, symbol string) ([]OrderInfo, error)
 	GetKlines(ctx context.Context, symbol, interval string, limit int) ([]Kline, error)
 	CancelOrder(ctx context.Context, symbol, orderID string) error
