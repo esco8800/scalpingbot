@@ -46,6 +46,7 @@ func (c *MEXCClient) GetAllOrders(ctx context.Context, symbol string, startTime,
 	q.Set("symbol", symbol)
 	q.Set("startTime", strconv.FormatInt(startTime, 10))
 	q.Set("endTime", strconv.FormatInt(endTime, 10))
+	q.Set("limit", "1000")
 	q.Set("timestamp", timestamp)
 
 	signature := c.sign(q.Encode())
