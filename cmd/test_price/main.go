@@ -50,11 +50,12 @@ func main() {
 				log.Printf("Price Update: %.8f", price)
 			case <-ctx.Done():
 				log.Println("Остановка подписки на цены...")
-				return
-			}
-			case default:
+				break
+			default:
 				// Если нет новых цен, просто ждём
 				log.Println("Нет новых цен...")
+			}
+
 		}
 	}()
 
