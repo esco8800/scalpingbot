@@ -63,7 +63,7 @@ func (b *Bot) Process(ctx context.Context) error {
 			break
 		}
 
-		time.Sleep(200 * time.Millisecond) // для обхода rate-limit
+		time.Sleep(500 * time.Millisecond) // для обхода rate-limit
 	}
 
 	b.storage.Add(repo.ProfitKey, tools.CalculateSellVolumeInUSDT(allOrders)*(b.config.ProfitPercent/100))
