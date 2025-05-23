@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"scalpingbot/internal/logger"
 	"syscall"
+	"time"
 
 	"scalpingbot/internal/config"
 	"scalpingbot/internal/exchange"
@@ -21,22 +22,24 @@ func main() {
 	}
 
 	logLoger := logger.SetupLogger(cfg.TgToken, cfg.TgChatID)
-	// Создаём клиента MEXC
+
+	// Создаём клиента MEXC и сторедж
 	ex := exchange.NewMEXCClient(cfg.APIKey, cfg.SecretKey, cfg.Symbol, logLoger)
 
 	// Создаём контекст с отменой
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Канал для получения цен
-	priceChan := make(chan float64, 100)
+	now := time.Now()
+	endTime := now.UnixMilli()
+	startTime := now.Add(-59 * 24 * 7 * time.Minute).UnixMilli()
 
-	// Запускаем подписку на цены
-	//log.Println("Запуск подписки на цены...")
-	//err = ex.SubscribePrice(ctx, priceChan)
-	//if err != nil {
-	//	log.Fatalf("Ошибка подписки на цены: %v", err)
-	//}
+	allOrders, err := ex.GetAllOrders(context.Background(), cfg.Symbol, startTime, endTime)
+	if err != nil {
+		log.Fatalf("Ошибка получения всех ордеров: %v", err)
+	}
+	log.Printf("Время первого оредра %d", allOrders[0].Time)
+	log.Printf("Врем последнего ордера %d", allOrders[len(allOrders)-1].Time)
 
 	// Настраиваем graceful shutdown
 	sigChan := make(chan os.Signal, 1)
@@ -46,15 +49,10 @@ func main() {
 	go func() {
 		for {
 			select {
-			case price := <-priceChan:
-				log.Printf("Price Update: %.8f", price)
 			case <-ctx.Done():
 				log.Println("Остановка подписки на цены...")
 				return
 			}
-			case default:
-				// Если нет новых цен, просто ждём
-				log.Println("Нет новых цен...")
 		}
 	}()
 

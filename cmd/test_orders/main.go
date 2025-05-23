@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"scalpingbot/internal/logger"
 	"syscall"
 
 	"scalpingbot/internal/config"
@@ -21,8 +22,9 @@ func main() {
 		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
 	}
 
+	logLoger := logger.SetupLogger(cfg.TgToken, cfg.TgChatID)
 	// Создаём клиента MEXC
-	ex := exchange.NewMEXCClient(cfg.APIKey, cfg.SecretKey, cfg.Symbol)
+	ex := exchange.NewMEXCClient(cfg.APIKey, cfg.SecretKey, cfg.Symbol, logLoger)
 	req := exchange.SpotOrderRequest{
 		Side:     exchange.Sell,
 		Type:     "LIMIT",

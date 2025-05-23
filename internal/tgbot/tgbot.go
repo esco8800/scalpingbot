@@ -26,13 +26,14 @@ const (
 )
 
 type TelegramBot struct {
-	bot     *tgbotapi.BotAPI
-	token   string
-	chatID  int64
-	ringBuf buffer.Buffer
-	storage repo.Repo
-	ex      exchange.Exchange
-	cfg     config.Config
+	bot           *tgbotapi.BotAPI
+	token         string
+	chatID        int64
+	ringBuf       buffer.Buffer
+	storage       repo.Repo
+	ex            exchange.Exchange
+	cfg           config.Config
+	profitStorage repo.ProfitRepo
 }
 type BotCommand struct {
 	Command     string `json:"command"`
@@ -48,20 +49,21 @@ type TelegramUpdate struct {
 	} `json:"message"`
 }
 
-func NewTelegramBot(cfg config.Config, ringBuf buffer.Buffer, storage repo.Repo, ex exchange.Exchange) (*TelegramBot, error) {
+func NewTelegramBot(cfg config.Config, ringBuf buffer.Buffer, storage repo.Repo, ex exchange.Exchange, profitStorage repo.ProfitRepo) (*TelegramBot, error) {
 	bot, err := tgbotapi.NewBotAPI(cfg.TgToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create bot: %w", err)
 	}
 
 	tgBot := &TelegramBot{
-		bot:     bot,
-		token:   cfg.TgToken,
-		chatID:  cfg.TgChatID,
-		ringBuf: ringBuf,
-		storage: storage,
-		ex:      ex,
-		cfg:     cfg,
+		bot:           bot,
+		token:         cfg.TgToken,
+		chatID:        cfg.TgChatID,
+		ringBuf:       ringBuf,
+		storage:       storage,
+		ex:            ex,
+		cfg:           cfg,
+		profitStorage: profitStorage,
 	}
 
 	// Регистрируем команды
@@ -117,19 +119,16 @@ func (tb *TelegramBot) handleCommand(msg *tgbotapi.Message) error {
 		}
 		buyCount, sellCount := sell_v1.GetCountOpenOrders(openOrders)
 
-		//now := time.Now()
-		//endTime := now.UnixMilli()
-		//startTime := now.Add(24 * 7 * time.Hour).UnixMilli()
-		//
-		//allOrders, err := tb.ex.GetAllOrders(context.Background(), tb.cfg.Symbol, startTime, endTime)
-		//if err != nil {
-		//	return err
-		//}
-
 		var builder strings.Builder
 		builder.WriteString(fmt.Sprintf("Count of open Buy Orders: %d \n", buyCount))
 		builder.WriteString(fmt.Sprintf("Count of open Sell Orders: %d \n", sellCount))
-		//builder.WriteString(fmt.Sprintf("Total Profit last 7d: %.3f \n", tools.CalculateSellVolumeInUSDT(allOrders)))
+
+		profit, ok := tb.profitStorage.Get(repo.ProfitKey)
+		if !ok {
+			builder.WriteString("Total Profit last 7d: calculating...\n")
+		} else {
+			builder.WriteString(fmt.Sprintf("Total Profit last 7d: %.3f USDT\n", profit))
+		}
 
 		message = builder.String()
 	default:

@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
-	"log"	
+	"log"
 	"os"
 	"os/signal"
+	"scalpingbot/internal/logger"
 	"syscall"
 
 	"scalpingbot/internal/config"
@@ -20,8 +21,9 @@ func main() {
 		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
 	}
 
+	logLoger := logger.SetupLogger(cfg.TgToken, cfg.TgChatID)
 	// Создаём клиента MEXC
-	ex := exchange.NewMEXCClient(cfg.APIKey, cfg.SecretKey, cfg.Symbol)
+	ex := exchange.NewMEXCClient(cfg.APIKey, cfg.SecretKey, cfg.Symbol, logLoger)
 
 	// Создаём контекст с отменой
 	ctx, cancel := context.WithCancel(context.Background())
@@ -41,7 +43,6 @@ func main() {
 	// Настраиваем graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
 
 	// Ждём сигнала завершения
 	<-sigChan

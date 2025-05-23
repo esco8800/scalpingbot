@@ -10,6 +10,7 @@ import (
 	"scalpingbot/internal/listener"
 	"scalpingbot/internal/logger"
 	"scalpingbot/internal/tgbot"
+	"scalpingbot/internal/workers/profit_calc"
 	"syscall"
 
 	"scalpingbot/internal/config"
@@ -35,8 +36,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
 	}
-	// Создаём репозиторий для хранения данных
+	// Создаём репозитории для хранения данных
 	storage := repo.NewSafeSet()
+	profitStorage := repo.NewSProfitStorage()
 
 	logLoger := logger.SetupLogger(cfg.TgToken, cfg.TgChatID)
 
@@ -44,7 +46,7 @@ func main() {
 	ex := exchange.NewMEXCClient(cfg.APIKey, cfg.SecretKey, cfg.Symbol, logLoger)
 
 	// Инициализация Telegram бота
-	bot, err := tgbot.NewTelegramBot(cfg, ringBuffer, storage, ex)
+	bot, err := tgbot.NewTelegramBot(cfg, ringBuffer, storage, ex, profitStorage)
 	if err != nil {
 		log.Fatalf("Ошибка инициализации Telegram бота: %v", err)
 	}
@@ -66,6 +68,11 @@ func main() {
 	err = worker.Start(ctx, sellWorker, time.Minute, logLoger)
 	if err != nil {
 		log.Fatalf("Ошибка запуска sellWorker: %v", err)
+	}
+	profitWorker := profit_calc.NewBot(cfg, ex, profitStorage)
+	err = worker.Start(ctx, profitWorker, 30*time.Minute, logLoger)
+	if err != nil {
+		log.Fatalf("Ошибка запуска profitWorker: %v", err)
 	}
 
 	log.Println("Запуск подписки на обновления ордеров...")
