@@ -22,7 +22,7 @@ func main() {
 
 	logLoger := logger.SetupLogger(cfg.TgToken, cfg.TgChatID)
 	// Создаём клиента MEXC
-	ex := exchange.NewMEXCClient(cfg.APIKey, cfg.SecretKey, cfg.Symbol, logLoger)
+	_ = exchange.NewMEXCClient(cfg.APIKey, cfg.SecretKey, cfg.Symbol, logLoger)
 
 	// Создаём контекст с отменой
 	ctx, cancel := context.WithCancel(context.Background())
