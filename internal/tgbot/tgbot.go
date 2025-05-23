@@ -6,15 +6,24 @@ import (
 	"encoding/json"
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"golang.org/x/time/rate"
 	"log"
 	"net/http"
+	"regexp"
 	"scalpingbot/internal/buffer"
 	"scalpingbot/internal/config"
 	"scalpingbot/internal/exchange"
 	"scalpingbot/internal/repo"
+	"scalpingbot/internal/repository"
 	"scalpingbot/internal/workers/sell_v1"
+	"strconv"
 	"strings"
+	"time"
 )
+
+var allowedUsers = map[int64]bool{
+	280019658: true,
+}
 
 const (
 	WorkerStatusKey = "worker_status"
@@ -23,6 +32,8 @@ const (
 	stop_worker  = "stop_worker"
 	logs         = "logs"
 	stats        = "stats"
+	start        = "start"
+	set_settings = "set_settings"
 )
 
 type TelegramBot struct {
@@ -34,6 +45,8 @@ type TelegramBot struct {
 	ex            exchange.Exchange
 	cfg           config.Config
 	profitStorage repo.ProfitRepo
+	sqlLiteDb     repository.UserRepository
+	limiter       *rate.Limiter
 }
 type BotCommand struct {
 	Command     string `json:"command"`
@@ -49,7 +62,7 @@ type TelegramUpdate struct {
 	} `json:"message"`
 }
 
-func NewTelegramBot(cfg config.Config, ringBuf buffer.Buffer, storage repo.Repo, ex exchange.Exchange, profitStorage repo.ProfitRepo) (*TelegramBot, error) {
+func NewTelegramBot(cfg config.Config, ringBuf buffer.Buffer, storage repo.Repo, ex exchange.Exchange, profitStorage repo.ProfitRepo, sqlLiteDb repository.UserRepository) (*TelegramBot, error) {
 	bot, err := tgbotapi.NewBotAPI(cfg.TgToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create bot: %w", err)
@@ -64,6 +77,8 @@ func NewTelegramBot(cfg config.Config, ringBuf buffer.Buffer, storage repo.Repo,
 		ex:            ex,
 		cfg:           cfg,
 		profitStorage: profitStorage,
+		sqlLiteDb:     sqlLiteDb,
+		limiter:       rate.NewLimiter(rate.Every(time.Second), 1), // 1 команда в секунду
 	}
 
 	// Регистрируем команды
@@ -101,9 +116,19 @@ func (tb *TelegramBot) Start(ctx context.Context) error {
 
 // handleCommand обрабатывает входящие команды
 func (tb *TelegramBot) handleCommand(msg *tgbotapi.Message) error {
+	if !tb.limiter.Allow() {
+		return tb.sendMessage("Too many requests, please try again later")
+	}
+	if !allowedUsers[msg.From.ID] {
+		return tb.sendMessage("You are not allowed to use this bot")
+	}
+
 	var message string
 
 	switch msg.Command() {
+	case start:
+		message = "Бот для автоскальпинга. Подробное описание тут - (в разработке)\n" +
+			"Bot for auto-scalping. Detailed description here - (in development)"
 	case start_worker:
 		message = "Worker started"
 		tb.storage.Add(WorkerStatusKey)
@@ -131,6 +156,12 @@ func (tb *TelegramBot) handleCommand(msg *tgbotapi.Message) error {
 		}
 
 		message = builder.String()
+	case set_settings:
+		err := tb.handleSetSettings(msg)
+		if err != nil {
+			return err
+		}
+		message = "Settings updated successfully"
 	default:
 		message = "Неизвестная команда"
 	}
@@ -150,10 +181,12 @@ func (tb *TelegramBot) registerCommands() error {
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/setMyCommands", tb.token)
 
 	commands := []BotCommand{
-		{Command: start_worker, Description: "Запустить воркер"},
-		{Command: stop_worker, Description: "Остановить воркер"},
-		{Command: logs, Description: "Получить последние логи"},
-		{Command: stats, Description: "Получить cтатистику работы"},
+		{Command: start, Description: "What can this bot do"},
+		{Command: start_worker, Description: "Start worker"},
+		{Command: stop_worker, Description: "Stop worker"},
+		{Command: logs, Description: "Get last log messages"},
+		{Command: stats, Description: "Get stats"},
+		{Command: set_settings, Description: "Set user settings (profit_percent, order_size, base_buy_timeout, api_key, secret_key, symbol)"},
 	}
 
 	payload, err := json.Marshal(map[string][]BotCommand{"commands": commands})
@@ -172,5 +205,100 @@ func (tb *TelegramBot) registerCommands() error {
 	}
 
 	log.Println("Команды успешно зарегистрированы в Telegram")
+	return nil
+}
+
+// handleSetSettings обрабатывает команду установки настроек пользователя
+func (tb *TelegramBot) handleSetSettings(msg *tgbotapi.Message) error {
+	args := strings.Fields(msg.Text)
+	if len(args) != 7 {
+		return tb.sendMessage("Usage: /setsettings <profit_percent> <order_size> <base_buy_timeout> <api_key> <secret_key> <symbol>")
+	}
+
+	profitPercent, err := strconv.ParseFloat(args[1], 64)
+	if err != nil {
+		return tb.sendMessage("Invalid profit_percent format")
+	}
+	if profitPercent < 0 {
+		return tb.sendMessage("Profit percent must be non-negative")
+	}
+
+	orderSize, err := strconv.ParseFloat(args[2], 64)
+	if err != nil {
+		return tb.sendMessage("Invalid order_size format")
+	}
+	if orderSize <= 0 {
+		return tb.sendMessage("Order size must be positive")
+	}
+
+	// Проверяем, что profitPercent не превышают разумные пределы
+	if profitPercent > 10 {
+		return tb.sendMessage("Profit percent must be <= 10")
+	}
+
+	baseBuyTimeout, err := strconv.Atoi(args[3])
+	if err != nil {
+		return tb.sendMessage("Invalid base_buy_timeout format")
+	}
+	if baseBuyTimeout <= 0 {
+		return tb.sendMessage("Base buy timeout must be positive")
+	}
+
+	apiKey := args[4]
+	if apiKey == "" {
+		return tb.sendMessage("API key cannot be empty")
+	}
+
+	secretKey := args[5]
+	if secretKey == "" {
+		return tb.sendMessage("Secret key cannot be empty")
+	}
+
+	symbol := args[6]
+	if symbol == "" {
+		return tb.sendMessage("Symbol cannot be empty")
+	}
+
+	// Проверяем длину строк
+	if len(apiKey) > 256 || len(secretKey) > 256 || len(symbol) > 20 {
+		return tb.sendMessage("Input values are too long")
+	}
+
+	// Проверяем формат символа
+	if !regexp.MustCompile(`^[A-Z0-9]+$`).MatchString(symbol) {
+		return tb.sendMessage("Symbol must contain only uppercase letters and numbers")
+	}
+
+	user := repository.User{
+		TelegramID:     fmt.Sprintf("%d", msg.From.ID),
+		Username:       msg.From.UserName,
+		ProfitPercent:  profitPercent,
+		OrderSize:      orderSize,
+		BaseBuyTimeout: baseBuyTimeout,
+		APIKey:         apiKey,
+		SecretKey:      secretKey,
+		Symbol:         symbol,
+	}
+
+	// Проверяем, существует ли пользователь
+	_, err = tb.sqlLiteDb.GetUserByID(context.Background(), user.TelegramID)
+	if err != nil {
+		if err.Error() == "user not found" {
+			// Создаем нового пользователя
+			err = tb.sqlLiteDb.CreateUser(context.Background(), user)
+			if err != nil {
+				return tb.sendMessage(fmt.Sprintf("Failed to create user: %v", err))
+			}
+		} else {
+			return tb.sendMessage(fmt.Sprintf("Error checking user: %v", err))
+		}
+	} else {
+		// Обновляем существующего пользователя
+		err = tb.sqlLiteDb.UpdateUser(context.Background(), user)
+		if err != nil {
+			return tb.sendMessage(fmt.Sprintf("Failed to update user: %v", err))
+		}
+	}
+
 	return nil
 }

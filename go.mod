@@ -5,8 +5,10 @@ go 1.23.5
 require (
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/gorilla/websocket v1.5.3
+	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.19.0
+	golang.org/x/time v0.5.0
 	google.golang.org/protobuf v1.33.0
 )
 

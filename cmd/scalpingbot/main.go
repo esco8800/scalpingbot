@@ -9,6 +9,7 @@ import (
 	"scalpingbot/internal/buffer"
 	"scalpingbot/internal/listener"
 	"scalpingbot/internal/logger"
+	"scalpingbot/internal/repository"
 	"scalpingbot/internal/tgbot"
 	"scalpingbot/internal/workers/profit_calc"
 	"syscall"
@@ -39,6 +40,11 @@ func main() {
 	// Создаём репозитории для хранения данных
 	storage := repo.NewSafeSet()
 	profitStorage := repo.NewSProfitStorage()
+
+	sqlLiteDb, err := repository.NewSQLiteUserRepository(cfg.DbPath)
+	if err != nil {
+		log.Fatalf("Ошибка создания SQLite репозитория: %v", err)
+	}
 
 	logLoger := logger.SetupLogger(cfg.TgToken, cfg.TgChatID)
 

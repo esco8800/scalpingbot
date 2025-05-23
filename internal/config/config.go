@@ -10,18 +10,15 @@ import (
 
 // Config - структура конфигурации бота
 type Config struct {
-	ProfitPercent    float64 `mapstructure:"profit_percent" json:"profit_percent,omitempty"`
-	DropPercent      float64 `mapstructure:"drop_percent" json:"drop_percent,omitempty"`
-	DelaySeconds     int     `mapstructure:"delay_seconds" json:"delay_seconds,omitempty"`
-	OrderSize        float64 `mapstructure:"order_size" json:"order_size,omitempty"`
-	Deposit          float64 `mapstructure:"deposit" json:"deposit,omitempty"`
-	AvailableDeposit float64 `mapstructure:"-" json:"available_deposit,omitempty"` // Не читаем из конфига, вычисляем
-	APIKey           string  `mapstructure:"api_key" json:"api_key,omitempty"`
-	SecretKey        string  `mapstructure:"secret_key" json:"secret_key,omitempty"`
-	Symbol           string  `mapstructure:"symbol" json:"symbol,omitempty"` // Например, "KASUSDT"
-	BaseBuyTimeout   int     `mapstructure:"base_buy_timeout" json:"base_buy_timeout,omitempty"`
-	TgToken          string  `mapstructure:"tg_token" json:"token,omitempty"`
-	TgChatID         int64   `mapstructure:"tg_chat_id"  json:"chat_id,omitempty"`
+	ProfitPercent  float64 `mapstructure:"profit_percent" json:"profit_percent,omitempty"`
+	OrderSize      float64 `mapstructure:"order_size" json:"order_size,omitempty"`
+	APIKey         string  `mapstructure:"api_key" json:"api_key,omitempty"`
+	SecretKey      string  `mapstructure:"secret_key" json:"secret_key,omitempty"`
+	Symbol         string  `mapstructure:"symbol" json:"symbol,omitempty"` // Например, "KASUSDT"
+	BaseBuyTimeout int     `mapstructure:"base_buy_timeout" json:"base_buy_timeout,omitempty"`
+	TgToken        string  `mapstructure:"tg_token" json:"token,omitempty"`
+	TgChatID       int64   `mapstructure:"tg_chat_id"  json:"chat_id,omitempty"`
+	DbPath         string  `mapstructure:"db_path" json:"db_path,omitempty"`
 }
 
 // LoadConfig - загрузка конфигурации через Viper
@@ -64,6 +61,5 @@ func LoadConfig() (Config, error) {
 		return Config{}, fmt.Errorf("API Key и Secret Key обязательны для MEXC")
 	}
 
-	cfg.AvailableDeposit = cfg.Deposit
 	return cfg, nil
 }
