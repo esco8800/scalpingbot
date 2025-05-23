@@ -99,5 +99,7 @@ func main() {
 	<-sigChan
 	log.Println("Получен сигнал завершения, останавливаем бота...")
 	cancel()
+	// TODO : подумать и почитать про закрытие соединения
+	sqlLiteDb.Close()
 	log.Println("Бот остановлен")
 }
