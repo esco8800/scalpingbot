@@ -70,7 +70,7 @@ func main() {
 		log.Fatalf("Ошибка запуска sellWorker: %v", err)
 	}
 	profitWorker := profit_calc.NewBot(cfg, ex, profitStorage)
-	err = worker.Start(ctx, profitWorker, 30*time.Minute, logLoger)
+	err = worker.Start(ctx, profitWorker, 1*time.Minute, logLoger)
 	if err != nil {
 		log.Fatalf("Ошибка запуска profitWorker: %v", err)
 	}
