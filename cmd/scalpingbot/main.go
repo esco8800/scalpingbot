@@ -52,7 +52,7 @@ func main() {
 	ex := exchange.NewMEXCClient(cfg.APIKey, cfg.SecretKey, cfg.Symbol, logLoger)
 
 	// Инициализация Telegram бота
-	bot, err := tgbot.NewTelegramBot(cfg, ringBuffer, storage, ex, profitStorage)
+	bot, err := tgbot.NewTelegramBot(cfg, ringBuffer, storage, ex, profitStorage, sqlLiteDb)
 	if err != nil {
 		log.Fatalf("Ошибка инициализации Telegram бота: %v", err)
 	}
